@@ -2,11 +2,19 @@ import { describe, expect, it, vi } from 'vitest'
 
 const exec = vi.hoisted(() => ({ run: vi.fn() }))
 vi.mock('./exec.ts', () => ({ MISSING_BINARY: 127, run: exec.run }))
-const { parseActivePowerScheme, parseWifiInterface, parseWifiProfiles, windowsControlAction, windowsControlStatus } = await import('./windows-controls.ts')
+const { parseActivePowerScheme, parseWifiInterface, parseWifiProfiles, parseWindowsHelperResponse, windowsControlAction, windowsControlStatus, windowsControlsExecutable } = await import('./windows-controls.ts')
 const stats = async () => ({ sampledAt: 1, cpuPercent: 0, loadAverage: [0, 0, 0] as [number, number, number], memoryTotal: 100, memoryUsed: 50, memoryFree: 50, uptimeSeconds: 1, disks: [], battery: { present: false } })
 const success = (stdout = '') => ({ stdout, stderr: '', code: 0 })
 
 describe('Windows quick controls', () => {
+  it('uses only the bundled helper path and accepts exactly one JSON-lines response', () => {
+    expect(windowsControlsExecutable('C:\\Program Files\\Herald OS\\resources', 'C:\\source', () => true)).toBe('C:\\Program Files\\Herald OS\\resources\\windows-controls\\Herald.WindowsControls.exe')
+    expect(windowsControlsExecutable('C:\\missing', 'C:\\source', () => false)).toBe('C:\\source\\build\\windows-controls\\Herald.WindowsControls.exe')
+    expect(parseWindowsHelperResponse('{"ok":true,"result":{"present":true,"percent":80}}\n')).toEqual({ ok: true, result: { present: true, percent: 80 } })
+    expect(() => parseWindowsHelperResponse('{"ok":true}\n{"ok":true}\n')).toThrow('invalid response')
+    expect(() => parseWindowsHelperResponse('not json\n')).toThrow('invalid JSON')
+  })
+
   it('parses a radio, SSID and saved Wi-Fi profiles', () => {
     expect(parseWifiInterface('Name : Wi-Fi\nSSID : Studio\nBSSID : xx\nRadio status : Hardware On\n               Software On\n')).toEqual({ available: true, name: 'Wi-Fi', enabled: true, connected: 'Studio' })
     expect(parseWifiInterface('There is no wireless interface on the system.')).toEqual({ available: false, enabled: false })

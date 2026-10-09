@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { spawn } from 'node:child_process'
 import type { ControlAction, PowerState, StatusPanelId, StatusPanelState, SystemStats, WifiNetwork, WifiState } from '../../shared/ipc.ts'
 import { MISSING_BINARY, run } from './exec.ts'
 import { HostNotSupported } from './types.ts'
@@ -10,6 +13,92 @@ const POWER_SCHEMES = {
   'power-saver': 'a1841308-3541-4fab-bc81-f71556f20b4a'
 } as const
 const SCHEME_BY_GUID = new Map(Object.entries(POWER_SCHEMES).map(([name, guid]) => [guid, name]))
+const WINDOWS_CONTROLS_EXE = 'Herald.WindowsControls.exe'
+
+type WindowsHelperResponse =
+  | { ok: true; result: unknown }
+  | { ok: false; error: { code?: unknown; message?: unknown } }
+
+/**
+ * The native helper is an app resource in production and a fixed desktop build output while
+ * developing.  There is deliberately no PATH lookup or environment override: this boundary
+ * receives host-control requests and must never accidentally execute an unrelated executable.
+ */
+export function windowsControlsExecutable(resources = process.resourcesPath, cwd = process.cwd(), exists: (file: string) => boolean = existsSync): string {
+  const packaged = resources ? path.join(resources, 'windows-controls', WINDOWS_CONTROLS_EXE) : undefined
+  if (packaged && exists(packaged)) return packaged
+  return path.resolve(cwd, 'build', 'windows-controls', WINDOWS_CONTROLS_EXE)
+}
+
+/** Parse exactly one response from the helper's JSON-lines protocol. */
+export function parseWindowsHelperResponse(stdout: string): WindowsHelperResponse {
+  const lines = stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+  if (lines.length !== 1) throw new Error('Windows controls helper returned an invalid response')
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(lines[0])
+  } catch {
+    throw new Error('Windows controls helper returned invalid JSON')
+  }
+  if (!parsed || typeof parsed !== 'object' || typeof (parsed as { ok?: unknown }).ok !== 'boolean') {
+    throw new Error('Windows controls helper returned an invalid response')
+  }
+  return parsed as WindowsHelperResponse
+}
+
+async function callWindowsHelper(verb: 'battery.status', executable = windowsControlsExecutable()): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let timeout: NodeJS.Timeout | undefined
+    const finish = (error?: Error, result?: unknown): void => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      if (error) reject(error)
+      else resolve(result)
+    }
+    timeout = setTimeout(() => {
+      child.kill()
+      finish(new Error('Windows controls helper timed out'))
+    }, 5000)
+    child.once('error', () => finish(new HostNotSupported('native Windows controls', 'the bundled Herald Windows controls helper')))
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', chunk => { stdout += chunk })
+    child.stderr.on('data', chunk => { stderr += chunk })
+    child.once('close', code => {
+      if (code !== 0) {
+        finish(new Error(stderr.trim() || 'Windows controls helper failed'))
+        return
+      }
+      try {
+        const response = parseWindowsHelperResponse(stdout)
+        if (!response.ok) {
+          const message = typeof response.error?.message === 'string' ? response.error.message : 'Windows controls helper rejected the request'
+          finish(new Error(message))
+          return
+        }
+        finish(undefined, response.result)
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error('Windows controls helper failed'))
+      }
+    })
+    child.stdin.end(`${JSON.stringify({ verb })}\n`)
+  })
+}
+
+/** Read the Win32-backed battery state without introducing PowerShell into the control path. */
+export async function windowsBatteryStatus(): Promise<SystemStats['battery']> {
+  const result = await callWindowsHelper('battery.status')
+  if (!result || typeof result !== 'object') throw new Error('Windows controls helper returned an invalid battery status')
+  const battery = result as { present?: unknown; percent?: unknown; charging?: unknown }
+  if (typeof battery.present !== 'boolean') throw new Error('Windows controls helper returned an invalid battery status')
+  const percent = typeof battery.percent === 'number' && Number.isInteger(battery.percent) && battery.percent >= 0 && battery.percent <= 100 ? battery.percent : undefined
+  return { present: battery.present, ...(percent === undefined ? {} : { percent }), ...(typeof battery.charging === 'boolean' ? { charging: battery.charging } : {}) }
+}
 
 export function parseWifiInterface(stdout: string): { available: boolean; name?: string; enabled: boolean; connected?: string } {
   if (/no wireless interface/i.test(stdout)) return { available: false, enabled: false }
@@ -53,8 +142,13 @@ async function wifiState(): Promise<WifiState> {
 }
 
 async function powerState(stats: SystemStats): Promise<PowerState> {
-  const active = await run('powercfg', ['/getactivescheme'], 8000)
-  return { available: active.code === 0, battery: stats.battery, profile: active.code === 0 ? parseActivePowerScheme(active.stdout) : undefined, profiles: Object.keys(POWER_SCHEMES) }
+  const [active, battery] = await Promise.all([
+    run('powercfg', ['/getactivescheme'], 8000),
+    // The power profile remains useful during a partial install or an old development checkout.
+    // In a packaged app this resolves through the bundled helper.
+    windowsBatteryStatus().catch(() => stats.battery)
+  ])
+  return { available: active.code === 0, battery, profile: active.code === 0 ? parseActivePowerScheme(active.stdout) : undefined, profiles: Object.keys(POWER_SCHEMES) }
 }
 
 export async function windowsControlStatus(panel: StatusPanelId, stats: () => Promise<SystemStats>): Promise<StatusPanelState> {

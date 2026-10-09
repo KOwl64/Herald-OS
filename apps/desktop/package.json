@@ -16,12 +16,13 @@
     "dev:renderer": "vite --host 127.0.0.1 --port 5180 --strictPort",
     "dev:electron": "wait-on http://127.0.0.1:5180 && node scripts/bundle-electron.mjs --dev && cross-env HERALD_OS_DEV_SERVER=http://127.0.0.1:5180 electron .",
     "build": "vite build && node scripts/bundle-electron.mjs",
+    "build:windows-helper": "dotnet publish native/windows-controls/Herald.WindowsControls/Herald.WindowsControls.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o build/windows-controls",
     "start": "npm run build && electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "test": "vitest run",
     "dist:mac": "npm run build && electron-builder --mac --arm64 --publish never",
     "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "dist:win": "npm run build && electron-builder --win nsis --publish never"
+    "dist:win": "npm run build && npm run build:windows-helper && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "@floating-ui/dom": "1.8.0",
@@ -266,6 +267,10 @@
         }
       ],
       "extraResources": [
+        {
+          "from": "build/windows-controls",
+          "to": "windows-controls"
+        },
         {
           "from": "../../plugins/herald-os-bridge",
           "to": "herald-os-bridge",

@@ -130,6 +130,14 @@ Milestone 3 concern (the install step is gated by the installer we have not buil
 - The shell is the desktop-mode single window on Windows (no panels mode, no kiosk
   compositor mode). It runs as a regular Win32 application over the user's normal Windows
   desktop.
+- **Event hooks do not run on Windows.** `hookScripts` (`electron/events/hooks.ts`) selects
+  on `stat.mode & 0o111`, and NTFS has no executable bit: Node reports `0o666` for a file
+  written with mode `0o755`, so the filter matches nothing and `hookScripts` returns `[]` for
+  every file. Bypassing the filter alone would not be enough — `spawn(script)` cannot execute
+  a `.sh` on Windows without a shell either. Fixing this needs a decision about how a Windows
+  host invokes a hook (shebang, `PATHEXT`, or an explicit shell), which is a product decision
+  outside this milestone. `electron/events/sources.test.ts` pins the current behaviour and says
+  so in the test name, so the day this is fixed the suite says so first.
 - The host capabilities that have no Windows source yet return `HostNotSupported` with a
   short hint. The renderer already renders that case honestly; nothing about Milestone 1
   changes the renderer.

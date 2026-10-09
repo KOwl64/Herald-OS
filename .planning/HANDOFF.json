@@ -1,0 +1,68 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-10-09T20:17:27Z",
+  "phase": null,
+  "phase_name": "macmini-rigel-config",
+  "phase_dir": null,
+  "plan": null,
+  "task": 1,
+  "total_tasks": 2,
+  "status": "paused",
+  "context": "default",
+  "note": "This handoff lives in Herald-OS repo but the work is cross-cutting — it was RIGEL/MacMini Claude Code config done via SSH. Herald-OS itself has no active phase.",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "Fix MacMini Claude Code model to use MiniMax-M3.1-Flash-Preview",
+      "status": "done",
+      "commit": null,
+      "summary": "Replaced literal 'MiniMax-M3[1m]' with 'MiniMax-M3.1-Flash-Preview' in both ~/.claude/settings.json and ~/.claude/settings.local.json. Killed 5-day-old Claude daemon (PID 72864) that was caching stale config. Renamed ~/.claude/.credentials.json to .disabled-20261009-210919 to silence the 'Both claude.ai and ANTHROPIC_API_KEY set' warning. Added CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000 and CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1 to settings.local.json to silence model-catalog warning."
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 2,
+      "name": "Configure Hindsight MCP on MacMini",
+      "status": "not_started",
+      "summary": "User selected '2 - configure Hindsight MCP' earlier in the session but we got sidetracked with the auth warning fix. Hindsight is installed at ~/.hindsight/coding-agents (v0.8.0, @vectorize-io/hindsight-coding-agents) but not wired into Claude Code's MCP config yet. Also need to verify the SessionStart hook is firing and auto-tracking sessions."
+    }
+  ],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {
+      "decision": "Stay with minimax as the API provider (option 1 in model picker question)",
+      "rationale": "User confirmed they want to keep using MiniMax-M3.1-Flash-Preview via the minimax endpoint. Switching to an Anthropic key would require a real Anthropic API key, lose minimax models, and was not the preferred path.",
+      "phase": null
+    },
+    {
+      "decision": "Model picker options 1-5 (Default/Opus/Fable/Sonnet/Haiku) are display-only decoration",
+      "rationale": "Those are Anthropic's models. They cannot be selected because the API key is a minimax key and the base URL is https://api.minimax.io/anthropic — the minimax API doesn't have Opus/Sonnet/Haiku/Fable. Only option 6 (the minimax custom model) actually works.",
+      "phase": null
+    }
+  ],
+  "uncommitted_files": [],
+  "files_modified_remote": [
+    {
+      "host": "MacMini (paulgooch@100.100.247.91, Tailscale)",
+      "path": "~/.claude/settings.json",
+      "change": "ANTHROPIC_MODEL changed to MiniMax-M3.1-Flash-Preview",
+      "backup": "~/.claude/settings.json.bak.20261009-182606"
+    },
+    {
+      "host": "MacMini",
+      "path": "~/.claude/settings.local.json",
+      "change": "ANTHROPIC_MODEL changed to MiniMax-M3.1-Flash-Preview; added CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000, CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
+      "backup": "~/.claude/settings.local.json.bak.20261009-192024"
+    },
+    {
+      "host": "MacMini",
+      "path": "~/.claude/.credentials.json",
+      "change": "Renamed to .credentials.json.disabled-20261009-210919 to remove claude.ai auth",
+      "backup": "~/.claude/.credentials.json.bak.20261009-210919"
+    }
+  ],
+  "next_action": "SSH to MacMini (ssh paulgooch@100.100.247.91) and add Hindsight MCP server entry to ~/.claude.json mcpServers section. Verify the SessionStart hook from hindsight-claude-hook is firing.",
+  "context_notes": "User is on a Windows PC, debugging MacMini's Claude Code config via SSH. The original symptom was a banner showing 'MiniMax-M3[1m]' (literal string) — fixed by editing both settings files. After fix, model picker question surfaced; user chose to stay with minimax. Hindsight MCP is the only open follow-up."
+}

@@ -48,7 +48,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:bridge": "bash scripts/test-bridge.sh",
-    "dist:mac": "npm run dist:mac --workspace apps/desktop"
+    "dist:mac": "npm run dist:mac --workspace apps/desktop",
+    "dist:win": "npm run dist:win --workspace apps/desktop"
   },
   "devDependencies": {
     "cross-env": "^10.1.0"

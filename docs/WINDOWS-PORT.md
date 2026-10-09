@@ -1,8 +1,8 @@
 # Herald OS on Windows — port plan
 
-> Status: **Milestone 1 in flight.** Windows is currently a stub: `electron/platform/index.ts`
-> returns `GenericPlatform` on `win32`, the backend's PATH resolver shells out to `/bin/bash`,
-> and CI runs only on Ubuntu + macOS. This document lays out what changes and in what order.
+> Status: **Milestone 1 complete; Milestone 2 in progress.** Windows now boots through
+> `WindowsPlatform`, resolves its backend PATH without a POSIX shell, and has Windows CI coverage.
+> This document lays out the remaining host capabilities and their order.
 
 ## Goal
 

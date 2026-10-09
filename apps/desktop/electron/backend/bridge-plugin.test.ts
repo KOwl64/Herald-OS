@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { bridgeLinkPlan, ensureBridgePlugin, failureReason } from './bridge-plugin.ts'
+import { NO_SYMLINK_REASON, canCreateSymlink } from '../test-support/capabilities.ts'
+import { bridgeLinkPlan, failureReason, ensureBridgePlugin } from './bridge-plugin.ts'
 
 const bundled = '/Applications/Herald OS.app/Contents/Resources/herald-os-bridge'
 
@@ -35,27 +36,60 @@ describe('ensureBridgePlugin', () => {
   const saved = process.env.HERMES_HOME
   let root = ''
 
+  // Every test here ends with the plugin linked into a throwaway Hermes home, so each needs a real
+  // symlink. Guarded on what the machine can do, not on its platform.
+  const needsSymlink = !canCreateSymlink()
+  const skipReason = needsSymlink ? ` ${NO_SYMLINK_REASON}` : ''
+
   afterEach(() => {
     process.env.HERMES_HOME = saved
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  /** An app bundle, a Hermes home, and a `hermes` that logs its arguments and answers `config get` with `toolSearch`. */
-  function setUp(script = '', toolSearch = 'auto') {
+  interface FakeHermes {
+    /** Every invocation exits non-zero. */
+    fails?: boolean
+    /** `tools` prints a ✗ line and still exits 0, the way the real Hermes reports an unknown toolset. */
+    toolsetFails?: boolean
+    /** What `config get tools.tool_search.enabled` answers. */
+    toolSearch?: string
+  }
+
+  /** An app bundle, a Hermes home, and a `hermes` that records its arguments and answers `config get`. */
+  function setUp({ fails = false, toolsetFails = false, toolSearch = 'auto' }: FakeHermes = {}) {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-'))
     const resources = path.join(root, 'Herald OS.app', 'Contents', 'Resources')
     fs.mkdirSync(path.join(resources, 'herald-os-bridge'), { recursive: true })
     fs.writeFileSync(path.join(resources, 'herald-os-bridge', 'plugin.yaml'), 'name: herald-os-bridge\n')
     process.env.HERMES_HOME = path.join(root, 'hermes')
+
     const calls = path.join(root, 'calls.txt')
-    const body = `echo "$*" >> '${calls}'; ${script} [ "$1 $2" = "config get" ] && echo '${toolSearch}'; exit 0`
-    const runtime = { kind: 'path' as const, label: 'test', command: ['/bin/sh', '-c', body, 'hermes'] }
+    // The stand-in for `hermes` is Node, not a shell script: `/bin/sh` does not resolve from Node on
+    // Windows, and a shell here would have made these the only tests in the suite that could never
+    // run on the platform the port is for. `process.exitCode` rather than `process.exit`, so output
+    // aimed at a pipe is flushed before the process ends.
+    const hermes = path.join(root, 'hermes-fake.mjs')
+    fs.writeFileSync(
+      hermes,
+      [
+        "import fs from 'node:fs'",
+        `const calls = ${JSON.stringify(calls)}`,
+        'const args = process.argv.slice(2)',
+        "fs.appendFileSync(calls, args.join(' ') + '\\n')",
+        'const [command, sub] = args',
+        `if (command === 'config' && sub === 'get') console.log(${JSON.stringify(toolSearch)})`,
+        ...(toolsetFails ? [`if (command === 'tools') console.log("\\u2717 Unknown toolset 'herald_os'")`] : []),
+        `process.exitCode = ${fails ? 1 : 0}`
+      ].join('\n')
+    )
+
+    const runtime = { kind: 'path' as const, label: 'test', command: [process.execPath, hermes] }
     const herald = (name: string) => path.join(root, 'hermes', 'herald-os', name)
 
     return { resources, runtime, calls: () => fs.readFileSync(calls, 'utf8').trim().split('\n'), herald }
   }
 
-  it("links the app's copy into the Hermes home, enables it once and keeps Tool Search's value", async () => {
+  it.skipIf(needsSymlink)(`links the app's copy into the Hermes home, enables it once and keeps Tool Search's value${skipReason}`, async () => {
     const { resources, runtime, calls, herald } = setUp()
 
     expect(await ensureBridgePlugin(runtime, resources)).toBeNull()
@@ -69,8 +103,8 @@ describe('ensureBridgePlugin', () => {
     expect(calls()).toHaveLength(4)
   })
 
-  it('leaves Tool Search alone when it is off already and keeps the first value it found', async () => {
-    const { resources, runtime, calls, herald } = setUp('', 'off')
+  it.skipIf(needsSymlink)(`leaves Tool Search alone when it is off already and keeps the first value it found${skipReason}`, async () => {
+    const { resources, runtime, calls, herald } = setUp({ toolSearch: 'off' })
     fs.mkdirSync(path.dirname(herald('tool-search-before')), { recursive: true })
     fs.writeFileSync(herald('tool-search-before'), 'on\n')
 
@@ -79,8 +113,8 @@ describe('ensureBridgePlugin', () => {
     expect(fs.readFileSync(herald('tool-search-before'), 'utf8')).toBe('on\n')
   })
 
-  it('stops at a failed step, says why, and tries again on the next start', async () => {
-    const { resources, runtime, calls, herald } = setUp('exit 1;')
+  it.skipIf(needsSymlink)(`stops at a failed step, says why, and tries again on the next start${skipReason}`, async () => {
+    const { resources, runtime, calls, herald } = setUp({ fails: true })
 
     expect(await ensureBridgePlugin(runtime, resources)).toMatch(/^hermes plugins enable herald-os-bridge failed/)
     await ensureBridgePlugin(runtime, resources)
@@ -88,8 +122,8 @@ describe('ensureBridgePlugin', () => {
     expect(fs.existsSync(herald('bridge-enabled'))).toBe(false)
   })
 
-  it('counts a ✗ line as a failure even when hermes exits 0', async () => {
-    const { resources, runtime, calls, herald } = setUp(`[ "$1" = tools ] && echo "✗ Unknown toolset 'herald_os'";`)
+  it.skipIf(needsSymlink)(`counts a ✗ line as a failure even when hermes exits 0${skipReason}`, async () => {
+    const { resources, runtime, calls, herald } = setUp({ toolsetFails: true })
 
     expect(await ensureBridgePlugin(runtime, resources)).toContain("Unknown toolset 'herald_os'")
     expect(calls()).toEqual(['plugins enable herald-os-bridge', 'tools enable herald_os'])
@@ -97,7 +131,7 @@ describe('ensureBridgePlugin', () => {
     expect(fs.existsSync(herald('bridge-enabled'))).toBe(false)
   })
 
-  it('leaves a link the person removed after setup removed', async () => {
+  it.skipIf(needsSymlink)(`leaves a link the person removed after setup removed${skipReason}`, async () => {
     const { resources, runtime, calls, herald } = setUp()
     await ensureBridgePlugin(runtime, resources)
     const link = path.join(root, 'hermes', 'plugins', 'herald-os-bridge')

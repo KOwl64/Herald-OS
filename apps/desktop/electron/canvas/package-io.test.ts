@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultAdjustment, defaultTransform, imageFileFor, maskFileFor, newManifest, parseManifestText } from '../../shared/canvas/comp-format.ts'
+import { NO_SYMLINK_REASON, canCreateSymlink } from '../test-support/capabilities.ts'
 import { PackageWatcher, readAsset, readPackage, writePackage } from './package-io.ts'
 import { decodePng, encodePng } from './png.ts'
 
@@ -99,12 +100,26 @@ describe('writePackage and readPackage', () => {
     await expect(fs.stat(path.join(dir, 'manifest.json'))).rejects.toThrow()
   })
 
-  it('refuses an image that is a link to somewhere else', async () => {
+  it.skipIf(!canCreateSymlink())(`refuses an image that is a link to somewhere else${canCreateSymlink() ? '' : ` ${NO_SYMLINK_REASON}`}`, async () => {
     const dir = await project()
     await writePackage(dir, { manifest: twoLayers(), assets: { [imageFileFor(A)]: rgba(8, 4, 1), [maskFileFor(A)]: gray(8, 4, 2), [imageFileFor(B)]: rgba(2, 2, 3) } })
     const target = path.join(dir, 'images', imageFileFor(B))
     await fs.rm(target)
     await fs.symlink('/etc/hosts', target)
+    await expect(readPackage(dir)).rejects.toThrow(/missing/)
+  })
+
+  it('refuses an image that is not a plain file in the package, with or without symlinks', async () => {
+    // The guard is `lstat(...).isFile()`: lstat does not follow a link, so a symlink and a directory
+    // are both refused for the same reason. This half needs no privilege, so the security invariant
+    // is checked on every host - the symlink case above adds the escaping-target detail where the
+    // machine can build one.
+    const dir = await project()
+    await writePackage(dir, { manifest: twoLayers(), assets: { [imageFileFor(A)]: rgba(8, 4, 1), [maskFileFor(A)]: gray(8, 4, 2), [imageFileFor(B)]: rgba(2, 2, 3) } })
+    const target = path.join(dir, 'images', imageFileFor(B))
+    await fs.rm(target)
+    await fs.mkdir(target)
+
     await expect(readPackage(dir)).rejects.toThrow(/missing/)
   })
 })

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { NO_SYMLINK_REASON, canCreateSymlink } from '../test-support/capabilities.ts'
 import { isOmarchy, parseTomlStrings, readOmarchyTheme, themeColorsFromOmarchy } from './omarchy.ts'
 
 const ALACRITTY = `
@@ -47,7 +48,9 @@ describe('themeColorsFromOmarchy', () => {
 })
 
 describe('readOmarchyTheme', () => {
-  it('follows the current theme link and the background', () => {
+  // Omarchy stages the live theme as symlinks, so the fixture has to be one too. Guarded on what
+  // this machine can do, not on its platform: an admin CI runner builds the links and runs it.
+  it.skipIf(!canCreateSymlink())(`follows the current theme link and the background (${NO_SYMLINK_REASON})`, () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-'))
     const theme = path.join(home, '.config', 'omarchy', 'themes', 'tokyo-night')
     fs.mkdirSync(theme, { recursive: true })
@@ -64,6 +67,16 @@ describe('readOmarchyTheme', () => {
     expect(found?.spec.colors.bg).toBe('#1a1b26')
     expect(found?.spec.wallpaper).toBe(fs.realpathSync(path.join(theme, 'wall.png')))
     expect(readOmarchyTheme(path.join(home, 'nobody'))).toBeNull()
+    fs.rmSync(home, { recursive: true, force: true })
+  })
+
+  it('finds nothing in a home that is not Omarchy at all', () => {
+    // Runs everywhere, symlinks or not: the negative case must not depend on a fixture we cannot build.
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'omarchy-'))
+    fs.mkdirSync(path.join(home, '.config'), { recursive: true })
+
+    expect(readOmarchyTheme(home)).toBeNull()
+    expect(isOmarchy(home, {})).toBe(false)
     fs.rmSync(home, { recursive: true, force: true })
   })
 

@@ -71,7 +71,9 @@ host implementation, fixing two runtime-spawn bugs, and turning CI on**.
   implementations: `tasklist` / `wmic` for processes, `Get-PSDrive` for disks, `Get-Item`
   recents, PowerShell `Show-ItemInFolder` / `Start-Process` for launch + reveal, and
   thumbnail via `Microsoft.Windows.Imaging`.
-- File-watcher back-end swap (`ReadDirectoryChangesW`) where `fs.watch` is unreliable.
+- Office file watching already combines a folder watch with a size/time polling fallback, so it
+  survives missed `fs.watch` events and rename-over saves on Windows without a native watcher.
+  **Done — no `ReadDirectoryChangesW` swap is needed.**
 - A `WindowsCompositor` (`electron/wm/windows.ts`) only if we want the renderer-driven WM
   on top of bare Win32; default to letting Windows manage the shell window.
 - Quick-panel quick controls (`electron/platform/windows-controls.ts`): Wi-Fi via

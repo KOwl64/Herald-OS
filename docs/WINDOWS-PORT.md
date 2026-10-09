@@ -77,7 +77,7 @@ host implementation, fixing two runtime-spawn bugs, and turning CI on**.
 - Quick-panel quick controls (`electron/platform/windows-controls.ts`): Wi-Fi via
   `netsh`, Bluetooth via PowerShell, audio via `NAudio`/COM, displays via
   `EnumDisplaySettings`.
-- `BackendManager.parentPid` for win32 (replaces the `ps` shell-out).
+- `BackendManager.parentPid` for win32 (replaces the `ps` shell-out). **Done.**
 
 ### Milestone 3 — installer *(not yet)*
 

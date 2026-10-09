@@ -449,9 +449,22 @@ export function serveEnvironment(inherited: NodeJS.ProcessEnv, own: NodeJS.Proce
   return env
 }
 
-function parentPid(pid: number): number | null {
+type ProcessQuery = (command: string, args: string[]) => string
+
+function queryProcess(command: string, args: string[]): string {
+  return execFileSync(command, args, { encoding: 'utf8', timeout: 2000 })
+}
+
+/**
+ * The parent PID is needed only to distinguish our backend from another Herald instance. Keep the
+ * platform lookup here rather than asking the renderer to inspect processes. Windows has no `ps`,
+ * so query its supported CIM provider with a validated numeric PID.
+ */
+export function parentPidForPlatform(pid: number, platformName: NodeJS.Platform, query: ProcessQuery = queryProcess): number | null {
+  if (!Number.isSafeInteger(pid) || pid < 1) return null
+
   try {
-    if (process.platform === 'linux') {
+    if (platformName === 'linux') {
       // /proc/<pid>/stat: "pid (comm) state ppid …"; comm may contain spaces, so split after the ")".
       const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8')
       const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ')
@@ -459,12 +472,28 @@ function parentPid(pid: number): number | null {
       return Number(fields[1]) || null
     }
 
-    const out = execFileSync('ps', ['-o', 'ppid=', '-p', String(pid)], { encoding: 'utf8', timeout: 2000 })
+    if (platformName === 'win32') {
+      const out = query('powershell.exe', [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}' | Select-Object -ExpandProperty ParentProcessId`
+      ])
+
+      return Number(out.trim()) || null
+    }
+
+    const out = query('ps', ['-o', 'ppid=', '-p', String(pid)])
 
     return Number(out.trim()) || null
   } catch {
     return null
   }
+}
+
+function parentPid(pid: number): number | null {
+  return parentPidForPlatform(pid, process.platform)
 }
 
 function isProcessAlive(pid: number): boolean {

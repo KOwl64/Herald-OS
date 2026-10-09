@@ -6,11 +6,12 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, Sequence
 
@@ -23,6 +24,94 @@ _START_MENU_DIRS = (
     Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "Microsoft/Windows/Start Menu/Programs",
     Path(os.environ.get("APPDATA", "")) / "Microsoft/Windows/Start Menu/Programs",
 )
+
+# The bridge deliberately searches only user-facing profile folders instead of recursively
+# walking a drive.  That keeps a read-only convenience tool bounded and prevents it from
+# exposing system or other-user files.
+WINDOWS_SEARCH_FOLDERS = ("Desktop", "Documents", "Downloads", "Pictures", "Videos", "Music")
+MAX_FILE_SEARCH_ENTRIES = 10_000
+MAX_FILE_SEARCH_CANDIDATES = 2_000
+_SCREENSHOT_NAME = re.compile(r"screenshot|screen shot|screencapture|captura", re.IGNORECASE)
+_KIND_EXTENSIONS: dict[str, tuple[str, ...]] = {
+    "image": ("png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "bmp", "svg", "tif", "tiff", "avif"),
+    "screenshot": ("png", "jpg", "jpeg", "webp"),
+    "document": ("pdf", "doc", "docx", "odt", "rtf", "txt", "md", "pages", "xls", "xlsx", "ods", "ppt", "pptx", "odp", "epub"),
+    "pdf": ("pdf",),
+    "video": ("mp4", "mkv", "mov", "avi", "webm", "m4v", "mpg", "mpeg", "wmv"),
+    "audio": ("mp3", "wav", "flac", "ogg", "oga", "m4a", "aac", "opus", "wma"),
+    "code": ("py", "js", "ts", "tsx", "jsx", "go", "rs", "c", "h", "cpp", "hpp", "java", "rb", "sh", "swift", "kt", "php", "html", "css", "json", "yaml", "yml", "toml", "sql", "lua"),
+    "archive": ("zip", "tar", "gz", "tgz", "bz2", "xz", "zst", "7z", "rar"),
+}
+
+
+def search_extensions(search: FileSearch) -> set[str]:
+    """Lower-case extensions (without dots) allowed by a Windows file search."""
+    extensions = {extension.lstrip(".").lower() for extension in search.extensions if extension}
+    kind_extensions = set(_KIND_EXTENSIONS.get(search.kind or "any", ()))
+    return extensions & kind_extensions if extensions and kind_extensions else (extensions or kind_extensions)
+
+
+def search_time_bounds(search: FileSearch) -> tuple[float | None, float | None]:
+    """Convert inclusive ``since`` and end-of-day ``until`` dates to timestamps."""
+    def to_epoch(value: str, end_of_day: bool) -> float:
+        try:
+            timestamp = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            if end_of_day and len(value.strip()) == 10:
+                timestamp += timedelta(days=1)
+        except ValueError as exc:
+            raise ValueError(f"invalid date '{value}' (use YYYY-MM-DD or ISO 8601)") from exc
+        return timestamp.timestamp()
+
+    return (to_epoch(search.since, False) if search.since else None,
+            to_epoch(search.until, True) if search.until else None)
+
+
+def _is_within(path: str, parent: str) -> bool:
+    try:
+        return os.path.commonpath((path, parent)) == parent
+    except ValueError:  # Different drives on Windows.
+        return False
+
+
+def search_roots(query: FileSearch, home: Path | None = None) -> list[Path]:
+    """Return existing, safe roots for a Windows file search."""
+    profile = os.path.realpath(os.fspath(home or Path.home()))
+    if query.scope:
+        scope = os.path.realpath(os.path.abspath(os.path.expanduser(query.scope)))
+        if not _is_within(scope, profile):
+            raise ValueError("file search scope must be inside the current user's profile")
+        return [Path(scope)] if os.path.isdir(scope) else []
+    return [Path(profile, name) for name in WINDOWS_SEARCH_FOLDERS if os.path.isdir(os.path.join(profile, name))]
+
+
+def matches_file_search(path: str, query: FileSearch, *, is_dir: bool, mtime: float | None,
+                        bounds: tuple[float | None, float | None] | None = None) -> bool:
+    """Apply ``FileSearch`` predicates to a Windows candidate path (pure)."""
+    name = Path(path).name
+    lower = name.lower()
+    kind = query.kind or "any"
+    if kind == "folder":
+        if not is_dir:
+            return False
+    elif kind != "any" and is_dir:
+        return False
+    if query.name and query.name.lower() not in lower:
+        return False
+    if query.text and query.text.lower() not in lower:
+        return False
+    extensions = search_extensions(query)
+    if extensions:
+        extension = lower.rsplit(".", 1)[1] if "." in lower else ""
+        if is_dir or extension not in extensions:
+            return False
+    if kind == "screenshot" and not _SCREENSHOT_NAME.search(name):
+        return False
+    since, until = bounds if bounds is not None else search_time_bounds(query)
+    if (since is not None or until is not None) and mtime is None:
+        return False
+    if since is not None and mtime is not None and mtime < since:
+        return False
+    return not (until is not None and mtime is not None and mtime >= until)
 
 
 def _rows(value: str) -> list[dict[str, Any]]:
@@ -141,7 +230,45 @@ class WindowsHost(HostAdapter):
                 "entries": [{"path": str(child), "bytes": size} for size, child in sorted(entries, key=lambda entry: entry[0], reverse=True)[:limit]], "note": None}
 
     def find_files(self, query: FileSearch) -> list[FoundFile]:
-        raise HostNotSupported(_MESSAGE)
+        kind = query.kind or "any"
+        if not any((query.text, query.name, kind != "any", query.since, query.until, query.extensions)):
+            raise ValueError("search needs at least one of: text, name, kind, since/until, extensions")
+
+        bounds = search_time_bounds(query)  # Validate dates before reading folders.
+        candidate_cap = min(MAX_FILE_SEARCH_CANDIDATES, max(200, query.limit * 40))
+        inspected = 0
+        candidates: list[FoundFile] = []
+        pending = list(reversed(search_roots(query)))
+        while pending and inspected < MAX_FILE_SEARCH_ENTRIES and len(candidates) < candidate_cap:
+            directory = pending.pop()
+            try:
+                with os.scandir(directory) as entries:
+                    for entry in entries:
+                        if inspected >= MAX_FILE_SEARCH_ENTRIES or len(candidates) >= candidate_cap:
+                            break
+                        inspected += 1
+                        try:
+                            # Links and junctions can leave the profile; never follow them.
+                            if entry.is_symlink():
+                                continue
+                            is_dir = entry.is_dir(follow_symlinks=False)
+                            stat = entry.stat(follow_symlinks=False)
+                        except OSError:
+                            continue
+                        if matches_file_search(entry.path, query, is_dir=is_dir, mtime=stat.st_mtime, bounds=bounds):
+                            candidates.append(FoundFile(
+                                path=entry.path, size=stat.st_size,
+                                modified=datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+                                kind="folder" if is_dir else "file",
+                            ))
+                        if is_dir:
+                            pending.append(Path(entry.path))
+            except OSError:
+                # Permission-denied and transient entries are expected; this remains a partial,
+                # read-only search without disclosing inaccessible file names.
+                continue
+        candidates.sort(key=lambda item: item.modified or "", reverse=True)
+        return candidates[:max(1, query.limit)]
 
     def installed_apps(self) -> list[AppInfo]:
         apps: dict[str, AppInfo] = {}

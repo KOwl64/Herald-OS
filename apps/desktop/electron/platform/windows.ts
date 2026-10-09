@@ -2,6 +2,7 @@ import { shell } from 'electron'
 import os from 'node:os'
 import type { CalendarResult, InstalledApp, NetworkStatus, ProcessInfo, RecentFile, StatusPanelState, SystemInfo, SystemStats } from '../../shared/ipc.ts'
 import { type EditorTarget, type HostPlatform, HostNotSupported } from './types.ts'
+import { windowsControlAction, windowsControlStatus } from './windows-controls.ts'
 
 /**
  * Windows host. Milestone 1 fills in what the shell needs to start and to be ready for the
@@ -106,11 +107,11 @@ export class WindowsPlatform implements HostPlatform {
     return null
   }
 
-  async controlStatus(): Promise<StatusPanelState> {
-    throw new HostNotSupported('quick panels')
+  async controlStatus(panel: StatusPanelState['panel']): Promise<StatusPanelState> {
+    return windowsControlStatus(panel, () => this.sampleStats())
   }
 
-  async controlAction(): Promise<void> {
-    throw new HostNotSupported('quick panels')
+  async controlAction(action: Parameters<typeof windowsControlAction>[0]): Promise<void> {
+    return windowsControlAction(action)
   }
 }

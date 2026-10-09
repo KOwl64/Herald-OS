@@ -1,6 +1,7 @@
 import { DarwinPlatform } from './darwin.ts'
 import { GenericPlatform } from './generic.ts'
 import { LinuxPlatform } from './linux.ts'
+import { WindowsPlatform } from './windows.ts'
 import type { HostPlatform } from './types.ts'
 
 let instance: HostPlatform | null = null
@@ -11,6 +12,8 @@ function createPlatform(): HostPlatform {
       return new DarwinPlatform()
     case 'linux':
       return new LinuxPlatform()
+    case 'win32':
+      return new WindowsPlatform()
     default:
       return new GenericPlatform()
   }

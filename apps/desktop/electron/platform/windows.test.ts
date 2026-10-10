@@ -57,11 +57,11 @@ describe('WindowsPlatform', () => {
     expect(await platform.thumbnail('C:\\Path\\To.png', 128)).toBeNull()
   })
 
-  it('rejects openIn and unsupported quick controls with HostNotSupported', async () => {
+  it('rejects openIn and unsupported quick-control mutations with HostNotSupported', async () => {
     await expect(platform.openIn('editor', 'C:\\file.txt')).rejects.toBeInstanceOf(HostNotSupported)
     await expect(platform.openIn('finder', '')).rejects.toBeInstanceOf(HostNotSupported)
     await expect(platform.openIn('terminal', '')).rejects.toBeInstanceOf(HostNotSupported)
-    await expect(platform.controlStatus('bluetooth' as StatusPanelState['panel'])).rejects.toBeInstanceOf(HostNotSupported)
+    await expect(platform.controlStatus('bluetooth' as StatusPanelState['panel'])).resolves.toMatchObject({ panel: 'bluetooth' })
     await expect(platform.controlAction({ panel: 'bluetooth', action: 'scan' })).rejects.toBeInstanceOf(HostNotSupported)
   })
 

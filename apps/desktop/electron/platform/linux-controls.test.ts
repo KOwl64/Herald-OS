@@ -122,4 +122,18 @@ describe('controlActionProblem', () => {
     expect(controlActionProblem({ panel: 'power', action: 'profile', profile: 'turbo; reboot' })).toBe('unknown power profile')
     expect(controlActionProblem({ panel: 'audio', action: 'volume', kind: 'output', percent: 30 })).toBeNull()
   })
+
+  it('validates audio volume requests and refuses names that could be read as options', () => {
+    // Either percent or muted must be supplied; the helper would no-op otherwise.
+    expect(controlActionProblem({ panel: 'audio', action: 'volume', kind: 'output' })).toBe('volume requires either percent or muted')
+    expect(controlActionProblem({ panel: 'audio', action: 'volume', kind: 'output', id: 'render-1' })).toBe('volume requires either percent or muted')
+    // Muted alone is a valid mute-toggle request.
+    expect(controlActionProblem({ panel: 'audio', action: 'volume', kind: 'output', muted: true })).toBeNull()
+    // Percent must be an integer in the documented 0..100 range.
+    expect(controlActionProblem({ panel: 'audio', action: 'volume', kind: 'output', percent: 101 })).toBe('volume must be an integer between 0 and 100')
+    expect(controlActionProblem({ panel: 'audio', action: 'volume', kind: 'output', percent: -1 })).toBe('volume must be an integer between 0 and 100')
+    expect(controlActionProblem({ panel: 'audio', action: 'volume', kind: 'output', percent: 30.5 })).toBe('volume must be an integer between 0 and 100')
+    // An id that looks like an option is refused for the same reason Wi-Fi SSIDs are.
+    expect(controlActionProblem({ panel: 'audio', action: 'default', kind: 'output', id: '--help' })).toBe('invalid name')
+  })
 })

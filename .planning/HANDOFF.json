@@ -1,15 +1,15 @@
 {
   "version": "1.0",
-  "timestamp": "2026-10-10T10:15:00.000Z",
-  "phase": "windows-port-milestone-1-and-milestone-2-quick-controls-closed",
-  "phase_name": "windows-port-milestone-1-and-milestone-2-quick-controls-closed",
+  "timestamp": "2026-10-10T13:30:00.000Z",
+  "phase": "windows-port-bridge-ci-windows-latest-closed",
+  "phase_name": "windows-port-bridge-ci-windows-latest-closed",
   "phase_dir": null,
   "plan": null,
-  "task": 6,
-  "total_tasks": 6,
+  "task": 10,
+  "total_tasks": 10,
   "status": "complete",
   "context": "default",
-  "note": "Both milestones closed in this session. All four session-start objectives met: bounded find_files bridge (no change needed, already gated), Windows quick panels (Wi-Fi, Bluetooth, audio, display, power), Windows native window management, and a verified NSIS installer that bundles and exercises the native helper. 5 atomic commits on branch windows-native-app, HEAD 90099eb, working tree clean. No pending in-scope work. Deferred items (SSH password rotation, event hooks NTFS gap, audio.default, Bluetooth paired devices) are documented and gated on explicit Paul approval.",
+  "note": "Bridge CI matrix now covers windows-latest alongside ubuntu-latest and macos-latest. All bridge tests run cross-platform: pure fixes to bridge/tools.py:tilde() and bridge/documents.py:find_places() samples, plus skipif markers on the 12 tests that genuinely require Linux or Windows-incompatible primitives (pwd, /proc, AF_UNIX, coredumpctl, pdftotext, tesseract, bluetoothctl, pactl). 2 atomic commits on branch windows-native-app, HEAD 7916eb1, working tree clean. No pending in-scope work. Deferred items (SSH password rotation, event hooks NTFS gap, audio.default, Bluetooth paired devices, bridge plugin wiring into WindowsPlatform, NSIS arm64, appxmanifest, code signing) are documented and gated on explicit Paul approval.",
   "completed_tasks": [
     {
       "id": 1,
@@ -51,6 +51,16 @@
         "90099eb"
       ],
       "summary": "Five atomic commits. typecheck clean (was 4 pre-existing errors in 3a09d15). test 1135/8/0 of 1143 (was 1131/8/1). NSIS installer built (197 MB) and bundled helper verified end-to-end (sent battery.status, got valid JSON back). Audio panel added with pure-function mapping for testability. Audio default-device switching deliberately rejected with HostNotSupported. Wi-Fi uses fixed argv netsh argv with no password on a command line. Power uses a static GUID allowlist. Bluetooth helper returns radios only (paired-device enumeration is a deferred candidate)."
+    },
+    {
+      "id": 10,
+      "name": "Run the bridge plugin tests on windows-latest",
+      "status": "done",
+      "commits": [
+        "07c5f9b",
+        "7916eb1"
+      ],
+      "summary": "Two atomic commits. Bridge test suite was 17 failed/9 errored on Windows from cross-platform bugs (tilde ignored HOME, sample paths carried native separators) and tests that exercise Linux-only primitives (pwd, AF_UNIX, coredumpctl, pdftotext, tesseract, bluetoothctl, pactl). Fixed the two cross-platform bugs; added 12 skipif markers (1 module-level for test_linux_host.py, 1 module-level for test_os_ui.py, 2 for test_controls.py, 1 for test_crash.py, 3 for test_documents.py). Verified locally: 176 passed / 37 skipped / 0 failed of 213 collected. Then added windows-latest to the bridge matrix in .github/workflows/ci.yml and taught scripts/test-bridge.sh to skip the Linux CLI suite (os.getuid) on Windows. The exact CI command runs green on this PC. No assertion was weakened. The desktop full suite re-ran clean: 1135/8/0 of 1143 across 146/146 files (unchanged — the bridge changes only affect the bridge subset)."
     }
   ],
   "remaining_tasks": [
@@ -80,7 +90,35 @@
       "name": "Verify the 7 symlink-gated skips run on GitHub Actions windows-latest",
       "status": "pending_first_ci",
       "blocking": false,
-      "summary": "The 7 symlink-gated skips should RUN on the windows-latest CI runner (it is an administrator and can create symlinks). NOT VERIFIED against a real CI run yet. Confirm on the first CI run after this session."
+      "summary": "The 7 symlink-gated skips should RUN on the windows-latest CI runner (it is an administrator and can create symlinks). NOT VERIFIED against a real CI run yet. Confirm on the first CI run after this session. Now also applies to the bridge matrix (bridge:windows-latest will run the bridge tests). The shell matrix already had windows-latest."
+    },
+    {
+      "id": 11,
+      "name": "Wire the herald-os-bridge plugin into the Windows Electron host",
+      "status": "deferred",
+      "blocking": false,
+      "summary": "CANDIDATE. The Linux and macOS Electron hosts call into the herald-os-bridge plugin. Windows does not — apps/desktop/electron/platform/windows.ts is currently a thin shell. Wiring would unlock the bridge's filing-places, document-hints, system-os, and tools on Windows too. Separate phase, gated on Paul approval (and on a product decision about which bridge surfaces are Windows-appropriate)."
+    },
+    {
+      "id": 12,
+      "name": "NSIS arm64 target for Windows-on-ARM",
+      "status": "deferred",
+      "blocking": false,
+      "summary": "CANDIDATE. The current NSIS x64 build produces 197 MB. The C# native helper is single-arch (win-x64). Adding an arm64 build target would require building Herald.WindowsControls for win-arm64 and adding the target to electron-builder. Separate phase, gated on Paul approval."
+    },
+    {
+      "id": 13,
+      "name": "Windows code signing configuration",
+      "status": "deferred",
+      "blocking": false,
+      "summary": "CANDIDATE. electron-builder supports signing with signtool but no certificate is configured. SmartScreen reputation accumulates with each signed release. This is a deployment-readiness item. Separate phase, gated on Paul approval and a code-signing certificate."
+    },
+    {
+      "id": 14,
+      "name": "appxmanifest for Microsoft Store and winget distribution",
+      "status": "deferred",
+      "blocking": false,
+      "summary": "CANDIDATE. Herald-OS is currently distributed only via NSIS. Adding an appxmanifest target would unlock Microsoft Store listing and winget install. Separate phase, gated on Paul approval and Store onboarding."
     }
   ],
   "blockers": [],
@@ -88,7 +126,7 @@
   "human_actions_pending": [
     {
       "action": "Decide which candidate phase to open next (if any)",
-      "context": "Four candidate phases are documented: (A) paired-device Bluetooth enumeration, (B) Windows hook invocation model, (C) MacMini SSH password rotation (already deferred), (D) CI verification of symlink-gated skips. Each is a separate decision. No agent may start any of them without explicit Paul approval and a phase brief.",
+      "context": "Seven candidate phases are documented: (A) paired-device Bluetooth enumeration, (B) Windows hook invocation model, (C) MacMini SSH password rotation (already deferred), (D) CI verification of symlink-gated skips (now also covers the new bridge:windows-latest job), (E) wire the bridge plugin into the Windows Electron host, (F) NSIS arm64 target, (G) Windows code signing, (H) appxmanifest for Store/winget. Each is a separate decision. No agent may start any of them without explicit Paul approval and a phase brief.",
       "blocking": false
     }
   ],
@@ -148,12 +186,12 @@
   "files_modified_remote": [],
   "validation_results": {
     "branch": "windows-native-app",
-    "head_commit": "90099eb",
+    "head_commit": "7916eb1",
     "working_tree": "clean",
     "typecheck": "PASS - 0 errors. 4 pre-existing errors in 3a09d15 fixed in this session: SCHEME_BY_GUID Map<string,string> annotation; DisplayInfo width/height typeof !== 'number' narrowing.",
     "build": "PASS - NSIS installer built at release/HeraldOS-0.1.0-alpha.2-win-x64.exe (197 MB).",
-    "test": "PASS - 1135 passed / 8 skipped / 0 failed of 1143, 145/146 test files.",
-    "test_count_change": "+4 (1131 -> 1135): 2 new Windows audio tests, 1 new Linux audio validation test, 1 rewritten Windows contract test.",
+    "test": "PASS - 1135 passed / 8 skipped / 0 failed of 1143, 146/146 test files.",
+    "test_count_change": "+4 (1131 -> 1135) in the prior session; 0 change in this session (bridge fixes only affect cross-platform execution, not test counts). The bridge subset re-verified on Windows: 176 passed / 37 skipped / 0 failed of 213 collected.",
     "installer_verification": {
       "installer_path": "release/HeraldOS-0.1.0-alpha.2-win-x64.exe",
       "installer_size_bytes": 206569472,
@@ -170,5 +208,5 @@
     "skip_note": "7 of the 8 skips are symlink-gated and should RUN on the GitHub Actions windows-latest runner. NOT VERIFIED against a real CI run - confirm on the first CI run. The 8th (sources.test.ts) is skipped permanently on Windows and is the documented product gap."
   },
   "next_action": "No next action. Session closed. Pending work is candidate material for future phases, each gated by an explicit decision from Paul.",
-  "context_notes": "Pause invoked via session resume on 2026-10-10. Milestone 1 fixes were already in the WIP commit (3a09d15) with 1 cross-boundary test failing. This session: (1) fixed the 4 pre-existing typecheck errors with minimal edits, (2) refactored audio mapping into pure functions, (3) added audio panel validation in the ipc/controls.ts path, (4) updated windows.test.ts:64 contract assertion to recognise all valid protection outcomes with a comment explaining the security model, (5) wrote Windows audio tests, (6) wrote Linux audio validation tests, (7) built the NSIS installer end-to-end, (8) verified the bundled helper executes and returns valid JSON, (9) committed in 5 atomic commits with the correct Paul Gooch <pgooch@knightowl.co.uk> author identity, (10) saved the Herald-OS commit author rule to memory so it does not recur."
+  "context_notes": "Pause invoked via session resume on 2026-10-10. Prior session closed Milestone 1 + Milestone 2 (5 atomic commits, handoff commit, HEAD 2eaf876). This session continued the autonomous goal: (1) inspected bridge test failures on Windows, (2) diagnosed 17 fail + 9 error into two cross-platform bugs and twelve Linux-only tests, (3) fixed bridge/tools.py:tilde() to honour HOME and use '/' after '~', (4) fixed bridge/documents.py:describe_place() to use as_posix() for sample paths, (5) added 12 skipif markers across 5 test files (test_linux_host, test_os_ui, test_controls, test_crash, test_documents), (6) re-ran the bridge subset on Windows: 176 passed / 37 skipped / 0 failed of 213, (7) added windows-latest to .github/workflows/ci.yml:bridge.matrix.os, (8) taught scripts/test-bridge.sh to skip the Linux CLI suite (os.getuid) on Windows, (9) verified the exact CI command on this PC, (10) re-ran the full desktop suite: 1135/8/0 of 1143 (no regression), (11) committed in 2 atomic commits with the correct Paul Gooch <pgooch@knightowl.co.uk> author identity, (12) pushed to origin/windows-native-app."
 }

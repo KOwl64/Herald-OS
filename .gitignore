@@ -49,3 +49,9 @@ linux/vm/build/
 *.raw
 *.iso
 *.dmg
+handoff/
+
+# Generated output from the Windows native quick-controls helper.
+apps/desktop/native/windows-controls/**/bin/
+apps/desktop/native/windows-controls/**/obj/
+apps/desktop/build/windows-controls/

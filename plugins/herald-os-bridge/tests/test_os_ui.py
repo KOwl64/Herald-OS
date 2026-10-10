@@ -9,10 +9,13 @@ import json
 import os
 import shutil
 import socket
+import sys
 import tempfile
 import threading
 
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="os_ui talks to the control server over an AF_UNIX socket which Windows does not provide")
 
 
 def _mod(plugin, name):

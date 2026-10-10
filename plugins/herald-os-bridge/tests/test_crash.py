@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import sys
 
 import pytest
 
@@ -67,6 +68,7 @@ def test_resolve_mac_report_stays_inside_the_report_folders(plugin, tmp_path):
         crash.resolve_mac_report("Missing.ips", (reports,))
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="coredumpctl is a Linux-only tool")
 def test_parse_coredumpctl_list_names_signals_newest_first(plugin):
     rows = _crash(plugin).parse_coredumpctl_list(json.dumps([
         {"time": 1791000000000000, "pid": 10, "sig": 6, "exe": "/usr/bin/old", "corefile": "missing"},

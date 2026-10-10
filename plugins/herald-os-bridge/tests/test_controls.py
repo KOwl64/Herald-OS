@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import importlib
 import json
+import sys
+
+import pytest
 
 
 def _mod(plugin, name):
     return importlib.import_module(plugin.__name__ + ".bridge." + name)
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="bluetoothctl / pactl output is Linux-specific")
 def test_bluetooth_rows_and_device_picking(plugin):
     linux = _mod(plugin, "host.linux")
     rows = linux.parse_bluetoothctl_device_rows("Device AC:80:0A:12:34:56 WH-1000XM5\nDevice 11:22:33:44:55:66\nDevice aa:bb:cc:dd:ee:ff Magic Mouse\n")
@@ -21,6 +25,7 @@ def test_bluetooth_rows_and_device_picking(plugin):
     assert linux.pick_device([("a", "Left speaker"), ("b", "Right speaker")], "speaker") is None
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="pactl / power-profiles output is Linux-specific")
 def test_pactl_and_power_profiles(plugin):
     linux = _mod(plugin, "host.linux")
     sinks = json.dumps([

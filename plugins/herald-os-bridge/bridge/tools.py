@@ -496,9 +496,19 @@ SYSTEM_FILES_SCHEMA = _schema(
 
 
 def tilde(path: Path) -> str:
-    """The path with the home folder written as ``~`` (for lines a person reads)."""
-    home, text = str(Path.home()), str(path)
-    return "~" + text[len(home):] if text == home or text.startswith(home + os.sep) else text
+    """The path with the home folder written as ``~`` (for lines a person reads).
+
+    ``HOME`` is honoured so tests and CI can isolate the home; ``Path.home()`` is the fallback
+    (which reads ``USERPROFILE`` on Windows, where ``HOME`` is usually unset). After ``~`` the
+    separators are always ``/`` so the line is readable on Windows too.
+    """
+    home = os.environ.get("HOME") or str(Path.home())
+    text = str(path)
+    if text == home:
+        return "~"
+    if text.startswith(home + os.sep):
+        return "~/" + text[len(home) + 1:].replace(os.sep, "/")
+    return text
 
 
 @dataclass

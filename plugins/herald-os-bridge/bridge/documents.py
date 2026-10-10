@@ -823,7 +823,7 @@ def describe_place(folder: Path) -> dict[str, Any]:
             if name.startswith("."):
                 continue
             try:
-                files.append((os.stat(os.path.join(root, name)).st_mtime, str(Path(root, name).relative_to(folder))))
+                files.append((os.stat(os.path.join(root, name)).st_mtime, Path(root, name).relative_to(folder).as_posix()))
             except OSError:
                 continue
         if len(files) > 2000:

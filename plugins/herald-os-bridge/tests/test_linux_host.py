@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import importlib
+import sys
 from datetime import datetime
 
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only host parsers (pwd, /proc, /usr/bin)")
 
 
 def _mod(plugin, name):

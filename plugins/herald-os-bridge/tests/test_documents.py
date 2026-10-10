@@ -377,6 +377,7 @@ class FakeRun:
         raise AssertionError(argv)
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="pdftotext / tesseract is Linux-only")
 def test_linux_reads_text_pages_and_ocrs_the_scanned_ones(plugin, tmp_path, monkeypatch):
     linux = _mod(plugin, "host.linux")
     pdf = tmp_path / "mixed.pdf"
@@ -390,6 +391,7 @@ def test_linux_reads_text_pages_and_ocrs_the_scanned_ones(plugin, tmp_path, monk
     assert ["pdftoppm", "-r", "200", "-gray", "-png", "-f", "2", "-l", "2", "-singlefile"] == fake.calls[2][:10]
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="tesseract is Linux-only")
 def test_linux_without_poppler_ocrs_the_scan_pictures(plugin, tmp_path, monkeypatch):
     linux, docs = _mod(plugin, "host.linux"), _mod(plugin, "documents")
     scan = tmp_path / "IMG_2231.pdf"
@@ -402,6 +404,7 @@ def test_linux_without_poppler_ocrs_the_scan_pictures(plugin, tmp_path, monkeypa
     assert doc.pages == ["OCR of page-1.jpg: Invoice No. NP-5521"] and doc.ocr_pages == [1] and doc.engine == "anydoc + tesseract"
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="pdftotext / tesseract is Linux-only")
 def test_linux_names_the_missing_ocr_package(plugin, tmp_path, monkeypatch):
     linux, docs = _mod(plugin, "host.linux"), _mod(plugin, "documents")
     scan = tmp_path / "scan.pdf"

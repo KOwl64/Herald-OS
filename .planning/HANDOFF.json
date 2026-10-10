@@ -1,15 +1,15 @@
 {
   "version": "1.0",
-  "timestamp": "2026-10-09T20:51:55.183Z",
+  "timestamp": "2026-10-10T07:25:25.000Z",
   "phase": null,
   "phase_name": "windows-port-milestone-1-validation",
   "phase_dir": null,
   "plan": null,
-  "task": 3,
-  "total_tasks": 3,
-  "status": "paused",
+  "task": 5,
+  "total_tasks": 5,
+  "status": "in_progress",
   "context": "default",
-  "note": "Task 2 from the prior handoff (MacMini Hindsight MCP) is now DONE and VERIFIED — it was already configured, nothing needed changing. This session's work was validation only: closed out MacMini, then ran the Milestone 1 validation from docs/WINDOWS-PORT.md against the windows-native-app branch. Validation found 11 failing tests, so Milestone 1 is NOT closed. A committed plaintext credential was also found. Both are open and neither has been actioned yet.",
+  "note": "Milestone 1 is NOT green at the moment of pause. New Milestone 2 quick-controls code landed in the same working tree; the cross-boundary test at apps/desktop/electron/platform/windows.test.ts:64 now fails because the new C# helper returns not_supported for bluetooth.status. Test run: 1 failed / 1131 passed / 8 skipped of 1140, 145/146 files. The 11 Milestone 1 fixes from the prior session are intact and good. MacMini SSH password rotation is deferred at Paul's request.",
   "completed_tasks": [
     {
       "id": 1,
@@ -23,88 +23,167 @@
       "name": "Configure Hindsight MCP on MacMini",
       "status": "done",
       "commit": null,
-      "summary": "THIS SESSION — verification only, no changes needed. Hindsight was already fully wired. Six checks run over SSH and all passed: (1) user-scope MCP entry present in ~/.claude.json as stdio 'node /Users/paulgooch/.hindsight/coding-agents/dist/mcp-server.js' with HINDSIGHT_MCP_HARNESS=claude-code; (2) SessionStart/Stop hooks registered in ~/.claude/settings.json; (3) Hindsight backend on localhost:8888 returns HTTP 200; (4) mcp-server.js starts cleanly, exit 0; (5) claude-sessionstart-hook.js emits valid SessionStart JSON naming bank 'coding-agent::paulgooch'; (6) bare 'node' resolves on the launch PATH (/Users/paulgooch/.local/bin/node v26.7.0) so the config's bare 'command: node' is valid. Noted: a SECOND hindsight server exists at project scope for /Users/paulgooch, type http, url http://localhost:8888/mcp/eve/ — it overrides the user-scope stdio entry inside that one project only. Different backend, same name."
+      "summary": "Verified only, no changes needed. Hindsight was already fully wired. Six checks over SSH all passed: user-scope stdio MCP entry in ~/.claude.json; SessionStart/Stop hooks in settings.json; backend on localhost:8888 returns 200; mcp-server.js exits 0; sessionstart hook emits valid JSON for bank 'coding-agent::paulgooch'; bare 'node' resolves on the launch PATH. Noted: a SECOND hindsight server exists at PROJECT scope for /Users/paulgooch (type http, url http://localhost:8888/mcp/eve/) which overrides the user-scope stdio entry inside that one project only. Different backend, same name."
     },
     {
       "id": 3,
       "name": "Validate Herald-OS Windows port Milestone 1",
-      "status": "in_progress",
-      "progress": "Ran the three validation steps from docs/WINDOWS-PORT.md lines 113-124. typecheck PASS. build PASS. test FAIL — 1115 passed / 11 failed out of 1126, across 5 of 144 test files. Root causes identified (three classes, not eleven bugs) but NOT fixed. Full breakdown in remaining_work."
+      "status": "done",
+      "commit": null,
+      "summary": "typecheck PASS. build PASS. test FAIL — 1115 passed / 11 failed of 1126 across 5 of 144 files. Root causes identified in three classes. This is the state the fixes below started from."
+    },
+    {
+      "id": 5,
+      "name": "Fix the 11 Windows test failures to close Milestone 1",
+      "status": "done",
+      "commit": null,
+      "progress": "DONE in the prior session. All three validation steps went green at the end of the prior session. 8 of the 11 were fixed in place with full coverage retained; 8 tests skip on this laptop behind a capability probe. Net test count went UP (1126 -> 1131), not down. NOTE: the same working tree has since had Milestone 2 quick-controls code added; the validation is no longer green. This is reflected in the failing test field below."
     }
   ],
   "remaining_tasks": [
     {
       "id": 4,
       "name": "Rotate the MacMini SSH password committed to git",
-      "status": "not_started",
-      "summary": "SECURITY, HIGHEST PRIORITY. .planning/.continue-here.md is git-tracked (confirmed via git ls-files --error-unmatch; not gitignored) and contains the MacMini SSH password in plaintext on the 'Infrastructure State' line. That secret is in repository history on branch windows-native-app. Steps: rotate the password on the Mac mini; strip the password from the handoff file and record the credential location only; add .planning/.continue-here.md to .gitignore going forward; decide whether to purge from history (git filter-repo) — that rewrites history and needs explicit approval."
+      "status": "deferred",
+      "blocking": false,
+      "summary": "DEFERRED BY PAUL'S CHOICE on 2026-10-09 ('ignore that for now'). NOT blocking and NOT an open blocker for Milestone 1 - do not re-raise it as urgent on the next resume unless Paul brings it up. The MacMini SSH password sits in git history at commit 5d7b2ec, line 77 of .planning/.continue-here.md. It is stripped from the current file content; the credential itself is NOT rotated. Gitignore is NOT done. History purge is NOT done."
     },
     {
-      "id": 5,
-      "name": "Fix the 11 Windows test failures to close Milestone 1",
+      "id": "9",
+      "name": "Fix the cross-boundary test at windows.test.ts:64 so Milestone 1 is green again",
+      "status": "in_progress",
+      "blocking": true,
+      "summary": "The Milestone 1 contract test at apps/desktop/electron/platform/windows.test.ts:64 expects platform.controlStatus('bluetooth') to resolve. After the Milestone 2 quick-controls helper landed, the new C# protocol returns not_supported for bluetooth.status when the implementation is gated, and the Electron wrapper at apps/desktop/electron/platform/windows-controls.ts throws on response.ok === false. Two options, in order of preference: (1) update the test to accept either outcome with a comment, or (2) make the wrapper translate not_supported to HostNotSupported. NOT a defect in the C# helper - the explicit not_supported is a safety net. NOT a defect in the protocol - the allowlist is the contract. The fix is on the Electron test/wrapper side. Re-validate with all three steps from docs/WINDOWS-PORT.md and record new numbers."
+    },
+    {
+      "id": 6,
+      "name": "Commit the Milestone 1 + Milestone 2 work",
       "status": "not_started",
-      "summary": "Test-side platform assumptions, not production bugs. Three classes: (A) SYMLINK DENIED — 7 failures. fs.symlinkSync throws EPERM on Windows without Developer Mode or elevation. Sites: electron/theme/omarchy.test.ts:58, electron/canvas/package-io.test.ts, and 5 in electron/backend/bridge-plugin.test.ts. (B) NO EXECUTABLE BIT — 1 failure. electron/events/sources.test.ts:55, 'runs executable scripts in name order' returns [] instead of ['10-first','20-second'] because chmod 0o755 is a no-op on NTFS. (C) POSIX-ONLY BRANCHES — 3 failures. electron/office/convert.test.ts sofficeCandidates mac-app and Flatpak paths plus convertArgs headless profile assert macOS/Linux behaviour and do not skip on win32. Fix is platform guards in the tests. Per standing instruction: when a cleanup pass changes the assertion count, add a meaningful replacement assertion rather than silently netting a count down — and do NOT weaken a security assertion to make it pass."
+      "summary": "Verified green only after task 9 is fixed. Uncommitted on branch windows-native-app. Six files modified plus three new C# files plus a directory entry in .gitignore. Suggested split: (1) capability probe + symlink/exec guards; (2) convert.test.ts platform-aware expectations; (3) bridge-plugin fake-hermes rewrite; (4) WINDOWS-PORT.md gap note; (5) feat(electron): wire the Windows controls helper; (6) feat(native): Herald.WindowsControls helper; (7) test(native): JSON-lines protocol dispatcher; (8) chore(gitignore): exclude native build output; (9) test(electron): align WindowsPlatform quick-control expectations."
+    },
+    {
+      "id": 7,
+      "name": "Decide the Milestone 1 / Milestone 2 overlap",
+      "status": "not_started",
+      "summary": "Originally about f913a9a (Windows HostAdapter bridge) landing while Milestone 1 was open. Now superseded: Milestone 2 quick controls are actively in flight. The new question is whether the windows.test.ts:64 fix belongs in Milestone 1 closure or Milestone 2 closure. Recommendation: include it in the Milestone 2 commit (it is a contract change forced by the new helper)."
+    },
+    {
+      "id": 8,
+      "name": "Fix event hooks on Windows (product gap, not a test gap)",
+      "status": "not_started",
+      "deferred": true,
+      "summary": "NEW FINDING, deliberately not fixed. hookScripts (electron/events/hooks.ts) selects on 'stat.mode & 0o111'. NTFS has no executable bit - Node reports 0o666 for a file written with mode 0o755 (verified by probe on 2026-10-09) - so hookScripts returns [] for EVERY file and event hooks do not run at all on Windows. Bypassing the filter is not enough: spawn(script) cannot execute a .sh on Windows without a shell. Fixing needs a product decision about how a Windows host invokes a hook (shebang, PATHEXT, or an explicit shell). Recorded in docs/WINDOWS-PORT.md under Risks, and pinned by two tests in electron/events/sources.test.ts that run on every platform."
     }
   ],
   "blockers": [
     {
-      "description": "CI on windows-latest is red, so Milestone 1 cannot be called done",
+      "description": "windows.test.ts:64 failure is the only thing standing between ready-to-commit and ready-to-commit. It is a 5-line test edit OR a wrapper-side translation. The fix changes a renderer contract; surface to Paul before making it.",
       "type": "technical",
-      "workaround": "None needed — fix the tests in remaining_tasks id 5. Milestone 1's own validation section (docs/WINDOWS-PORT.md lines 113-124) requires typecheck + test + build to pass, and commit 9a5e042 wired windows-latest into the shell matrix, so the same 11 failures run there."
+      "workaround": "Pick option 1 (test-side) for the smaller blast radius; surface the contract change to Paul and document it in the test comment."
     }
   ],
   "async_jobs": [],
   "human_actions_pending": [
     {
-      "action": "Decide whether to rewrite git history to purge the committed MacMini password",
-      "context": "Rotating the password is safe and should happen regardless. History rewrite is a separate, destructive, shared-history-risking decision that only Paul can authorise.",
+      "action": "Decide which side the windows.test.ts:64 fix lands on (test contract vs Electron wrapper)",
+      "context": "Both options are valid. Option 1 is smaller and keeps the explicit not_supported visible at the protocol seam. Option 2 unifies the renderer error class. Either way, this is a renderer-boundary change and Paul should pick.",
+      "blocking": true
+    },
+    {
+      "action": "Authorise the commit once validation is green",
+      "context": "After the fix, re-run typecheck + build + test and record the new numbers. Then commit the Milestone 1 + Milestone 2 work as the suggested split.",
       "blocking": false
     },
     {
-      "action": "Confirm whether to enable Windows Developer Mode on this machine",
-      "context": "Developer Mode would let fs.symlinkSync work without elevation, letting the 7 symlink tests run natively instead of being skipped. If you would rather not enable it, the tests get platform guards and those 7 stay skipped on Windows.",
+      "action": "Rotate the MacMini SSH password (DEFERRED by Paul 2026-10-09 - ignore for now)",
+      "context": "Not urgent and not blocking. Paul deferred this explicitly. Only revisit if Paul raises it. If he does: ssh paulgooch@100.100.247.91, then passwd. The new value must never be typed into a Claude session or a shell command line.",
       "blocking": false
     }
   ],
   "decisions": [
     {
-      "decision": "Treated the Milestone 1 test failures as test-side platform assumptions, not production defects",
-      "rationale": "The failures are symlink permission, chmod, and POSIX path branches — none touch the WindowsPlatform / shell-env code that Milestone 1 actually added. Production code typechecks and bundles clean. Changing production code to satisfy a test that assumes POSIX would be the wrong fix.",
+      "decision": "Capability probe (canCreateSymlink) rather than a process.platform === 'win32' check",
+      "rationale": "A blanket Windows skip would silently drop coverage on the machines best placed to provide it - CI runners are administrators and CAN create symlinks. Probing means the 7 symlink tests RUN on windows-latest in CI and skip only on a developer laptop without Developer Mode. New helper: apps/desktop/electron/test-support/capabilities.ts.",
       "phase": null
     },
     {
-      "decision": "Reported the committed credential ahead of the failing tests, and did not act on either without asking",
-      "rationale": "A live SSH password in tracked history outranks a red test suite on urgency. But rotating someone's credential and rewriting shared git history are both irreversible outward-facing actions, so they were surfaced for approval rather than done unilaterally.",
+      "decision": "Fixed the 3 office/convert.test.ts failures in place instead of skipping them",
+      "rationale": "sofficeCandidates and convertArgs are pure and are asked about other platforms; the failures were POSIX literals meeting Windows path semantics, not the code being wrong. Rebuilding the expectations with path.delimiter, path.join and pathToFileURL keeps every assertion on every platform. Net +2 tests in that file.",
       "phase": null
     },
     {
-      "decision": "Did not carry the MacMini password forward into this new handoff file",
-      "rationale": "The pause-work workflow rewrites .continue-here.md wholesale. Propagating a known-committed secret into a freshly generated file would repeat the original mistake. The credential's location is recorded; the secret itself is not.",
+      "decision": "Rewrote the bridge-plugin fake hermes from /bin/sh to Node",
+      "rationale": "Paul's call. /bin/sh does not resolve from Node on Windows (ENOENT, verified), so a shell would have made these the only tests in the suite that could never run on the platform the port is for. The fake is now a generated .mjs invoked with process.execPath, and uses process.exitCode rather than process.exit so piped stdout flushes first. The 5 tests are now only gated on symlink capability.",
       "phase": null
     },
     {
-      "decision": "Stay with minimax as the API provider on MacMini",
-      "rationale": "PRIOR SESSION. User confirmed they want to keep MiniMax-M3.1-Flash-Preview via the minimax endpoint rather than switching to an Anthropic key.",
+      "decision": "Did NOT weaken the package-io symlink security assertion",
+      "rationale": "Per standing instruction. The assertion is unchanged and still rejects a symlinked asset. It is gated on the same capability probe, and a companion test was added that runs EVERYWHERE: replacing an asset with a directory exercises the same lstat(...).isFile() guard that defeats a symlink, so the security invariant is checked on every host. Net +1 test.",
+      "phase": null
+    },
+    {
+      "decision": "Recorded event hooks being dead on Windows as a Milestone 1 gap instead of fixing them",
+      "rationale": "Paul's call. It is a product defect, not a test defect, and the fix needs a decision about how Windows invokes a hook. Deferring keeps the milestone green and honest rather than green and wrong. Pinned by tests so it cannot be closed silently.",
+      "phase": null
+    },
+    {
+      "decision": "Corrected the prior handoff's classification",
+      "rationale": "The previous handoff said all 11 failures were test-side POSIX assumptions and none touched production code. That was wrong for sources.test.ts: hookScripts returns [] for every file on Windows, so event hooks genuinely do not run. Verified by probe, not inferred.",
+      "phase": null
+    },
+    {
+      "decision": "Did not commit",
+      "rationale": "No agent may commit without explicit authorisation. The verified work is in the working tree only.",
+      "phase": null
+    },
+    {
+      "decision": "Did not record Milestone 1 as 'green' on this pause",
+      "rationale": "The same working tree has new Milestone 2 code in it. Recording yesterday's green as today's would be a false claim. The fresh test run showed 1 failure at windows.test.ts:64, recorded honestly.",
+      "phase": null
+    },
+    {
+      "decision": "C# native helper for Windows quick controls uses a JSON-lines protocol with a fixed-allowlist Protocol dispatcher and a FakeAudioController seam so tests do not need audio hardware",
+      "rationale": "The C# helper exists in the same repo as the Node side. An allowlist is the only way to keep the boundary from becoming a general command runner. Default endpoint switching is deliberately excluded because Windows has no documented public API for it; the protocol returns not_supported for audio.default rather than rely on a private IPolicyConfig contract.",
       "phase": null
     }
   ],
-  "uncommitted_files": [],
+  "uncommitted_files": [
+    "M .gitignore",
+    "M .planning/.continue-here.md",
+    "M .planning/HANDOFF.json",
+    "M apps/desktop/electron/platform/windows-controls.ts",
+    "M apps/desktop/electron/platform/windows.test.ts",
+    "M apps/desktop/native/windows-controls/Herald.WindowsControls.Tests/Program.cs",
+    "M apps/desktop/native/windows-controls/Herald.WindowsControls/Program.cs",
+    "M apps/desktop/native/windows-controls/Herald.WindowsControls/Protocol.cs",
+    "?? apps/desktop/native/windows-controls/Herald.WindowsControls/WindowsAudioController.cs",
+    "?? apps/desktop/native/windows-controls/Herald.WindowsControls/WindowsBluetoothStatus.cs",
+    "?? apps/desktop/native/windows-controls/Herald.WindowsControls/WindowsDisplayStatus.cs"
+  ],
   "files_modified_remote": [],
   "validation_results": {
     "branch": "windows-native-app",
-    "head_commit": "5d7b2ec",
-    "working_tree": "clean",
-    "typecheck": "PASS",
-    "build": "PASS — dist/electron/main.mjs 862.7kb, dist/electron/preload.cjs 36.2kb",
-    "test": "FAIL — 1115 passed / 11 failed of 1126; 139 passed / 5 failed of 144 test files",
-    "failing_files": [
-      "electron/backend/bridge-plugin.test.ts (5 failures)",
-      "electron/office/convert.test.ts (3 failures)",
-      "electron/theme/omarchy.test.ts (1 failure)",
-      "electron/canvas/package-io.test.ts (1 failure)",
-      "electron/events/sources.test.ts (1 failure)"
-    ]
+    "head_commit": "6f9ff01",
+    "working_tree": "dirty - Milestone 1 + Milestone 2 quick-controls, uncommitted",
+    "typecheck": "NOT RE-RUN this pause; was green at end of last session, no type-affecting changes in the new uncommitted files. Re-run before claiming closed.",
+    "build": "NOT RE-RUN this pause; was green at end of last session. Re-run before claiming closed.",
+    "test": "FAIL (1 failed / 1131 passed / 8 skipped of 1140, 145/146 files) - windows.test.ts:64 cross-boundary test broke when the Milestone 2 helper returned not_supported for bluetooth.status.",
+    "test_before_milestone_2": "PASS (1123 passed / 8 skipped of 1131; 144/144 test files) - the state at the end of the prior session before the quick-controls code landed.",
+    "failing_test": {
+      "file": "apps/desktop/electron/platform/windows.test.ts",
+      "line": 64,
+      "name": "WindowsPlatform > rejects openIn and unsupported quick-control mutations with HostNotSupported",
+      "error": "Error: bluetooth.status is not implemented by this Windows helper.",
+      "cause": "Milestone 1 contract test expected controlStatus('bluetooth') to resolve. The new C# helper returns not_supported for bluetooth.status when its implementation is gated, and the Electron wrapper at windows-controls.ts throws on response.ok === false."
+    },
+    "skipped_tests": [
+      "electron/theme/omarchy.test.ts - follows the current theme link and the background (symlink)",
+      "electron/canvas/package-io.test.ts - refuses an image that is a link to somewhere else (symlink)",
+      "electron/backend/bridge-plugin.test.ts - 5 ensureBridgePlugin tests (symlink)",
+      "electron/events/sources.test.ts - runs executable scripts in name order (no exec bit on NTFS; this one is the recorded product gap)"
+    ],
+    "skip_note": "7 of the 8 skips are symlink-gated and should RUN on the GitHub Actions windows-latest runner, which is an administrator. NOT VERIFIED against a real CI run - confirm on the first CI run. The 8th (sources.test.ts) is skipped permanently on Windows and is the documented product gap."
   },
-  "next_action": "Do remaining_tasks id 4 FIRST: SSH to MacMini (ssh paulgooch@100.100.247.91), rotate the SSH password, then strip it from .planning/.continue-here.md and add that path to .gitignore. Then ask Paul whether to purge the secret from git history before touching anything else. Only after that, start remaining_tasks id 5 — begin with electron/events/sources.test.ts since it is the single simplest exec-bit case and establishes the guard pattern the other four files reuse.",
-  "context_notes": "Paul asked to work on Herald-OS and chose 'both — MacMini first, then Windows port'. MacMini came back needing nothing, which freed the whole session for Windows port validation. The branch is five commits past main: d0d962d plan doc, bd38e79 WindowsPlatform, a27c508 loginShellPath, 9a5e042 windows-latest CI, f913a9a the Windows HostAdapter bridge (168 lines of plugins/herald-os-bridge/bridge/host/windows.py plus tests). That last commit is actually the START of Milestone 2, not part of Milestone 1 — so Milestone 2 has been begun without Milestone 1 being closed. Worth deciding deliberately whether to finish Milestone 1 first or accept the overlap. Paul has not yet answered the A/B question raised at the end of the session (A = rotate the credential, B = fix the tests); the next agent should surface that choice again rather than assume it was taken."
+  "next_action": "Open apps/desktop/electron/platform/windows.test.ts and apps/desktop/electron/platform/windows-controls.ts. Decide which side changes: (1) test contract: accept either resolve or reject-with-not_supported; (2) wrapper translation: convert not_supported to HostNotSupported. Make the change, re-run typecheck + build + test, record the new numbers, then authorise the commit.",
+  "context_notes": "Pause invoked via /gsd-pause-work on 2026-10-10. Uncommitted tree includes a Milestone 2 quick-controls body of work (C# helper + Electron wrapper + .gitignore + protocol test) that was not present at the end of the last session. The cross-boundary test failure is the first symptom of Milestone 2 landing in the same tree. Task 4 (rotate the MacMini SSH password) is explicitly deferred at Paul's request."
 }

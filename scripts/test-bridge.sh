@@ -13,6 +13,11 @@ cd "$ROOT/plugins/herald-os-bridge/tests"
 # -k) pick tests as before.
 SUITES=(. "$ROOT/linux/tests")
 [[ $# -eq 0 ]] || SUITES=()
+# The Linux CLI tests rely on os.getuid, which Windows lacks; on Windows the bridge plugin is the
+# only thing under test here.
+if [[ "${OS:-}" == "Windows_NT" ]] || uname -s 2>/dev/null | grep -qiE 'mingw|msys'; then
+  SUITES=(.)
+fi
 
 if [[ -x "$PY" ]] && "$PY" -c "import pytest" >/dev/null 2>&1; then
   exec "$PY" -m pytest -q ${SUITES[@]+"${SUITES[@]}"} "$@"

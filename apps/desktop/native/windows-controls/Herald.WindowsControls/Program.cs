@@ -22,14 +22,15 @@ internal static class Program
                 var request = JsonSerializer.Deserialize<Request>(line, Json);
                 response = request is null
                     ? Response.InvalidRequest("Request must be a JSON object.")
-                    : Protocol.Dispatch(request, WindowsPowerStatus.Read);
+                    : Protocol.Dispatch(request, WindowsPowerStatus.Read, WindowsBluetoothStatus.Read, WindowsDisplayStatus.Read, new WindowsAudioController());
             }
             catch (JsonException)
             {
                 response = Response.InvalidRequest("Request must be valid JSON.");
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                Console.Error.WriteLine(error);
                 // Do not leak paths, HRESULTs, or other host details over this public boundary.
                 response = Response.InternalError();
             }

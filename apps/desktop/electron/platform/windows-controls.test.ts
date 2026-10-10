@@ -9,11 +9,16 @@ const success = (stdout = '') => ({ stdout, stderr: '', code: 0 })
 
 describe('Windows quick controls', () => {
   it('uses only the bundled helper path and accepts exactly one JSON-lines response', () => {
-    expect(windowsControlsExecutable('C:\\Program Files\\Herald OS\\resources', 'C:\\source', () => true)).toBe('C:\\Program Files\\Herald OS\\resources\\windows-controls\\Herald.WindowsControls.exe')
-    expect(windowsControlsExecutable('C:\\missing', 'C:\\source', () => false)).toBe('C:\\source\\build\\windows-controls\\Herald.WindowsControls.exe')
+    expect(windowsControlsExecutable('C:\\Program Files\\Herald OS\\resources', 'C:\\source', () => true, 'x64')).toBe('C:\\Program Files\\Herald OS\\resources\\windows-controls-x64\\Herald.WindowsControls.exe')
+    expect(windowsControlsExecutable('C:\\missing', 'C:\\source', () => false, 'x64')).toBe('C:\\source\\build\\windows-controls-x64\\Herald.WindowsControls.exe')
     expect(parseWindowsHelperResponse('{"ok":true,"result":{"present":true,"percent":80}}\n')).toEqual({ ok: true, result: { present: true, percent: 80 } })
     expect(() => parseWindowsHelperResponse('{"ok":true}\n{"ok":true}\n')).toThrow('invalid response')
     expect(() => parseWindowsHelperResponse('not json\n')).toThrow('invalid JSON')
+  })
+
+  it('picks the Windows-on-ARM helper subdirectory when the process is arm64', () => {
+    expect(windowsControlsExecutable('C:\\Program Files\\Herald OS\\resources', 'C:\\source', () => true, 'arm64')).toBe('C:\\Program Files\\Herald OS\\resources\\windows-controls-arm64\\Herald.WindowsControls.exe')
+    expect(windowsControlsExecutable('C:\\missing', 'C:\\source', () => false, 'arm64')).toBe('C:\\source\\build\\windows-controls-arm64\\Herald.WindowsControls.exe')
   })
 
   it('parses a radio, SSID and saved Wi-Fi profiles', () => {

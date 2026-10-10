@@ -55,3 +55,5 @@ handoff/
 apps/desktop/native/windows-controls/**/bin/
 apps/desktop/native/windows-controls/**/obj/
 apps/desktop/build/windows-controls/
+apps/desktop/build/windows-controls-x64/
+apps/desktop/build/windows-controls-arm64/

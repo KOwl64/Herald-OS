@@ -23,11 +23,17 @@ type WindowsHelperResponse =
  * The native helper is an app resource in production and a fixed desktop build output while
  * developing.  There is deliberately no PATH lookup or environment override: this boundary
  * receives host-control requests and must never accidentally execute an unrelated executable.
+ *
+ * The helper is built per Windows architecture (win-x64 and win-arm64) and lives under a
+ * matching subdirectory so a single installer can ship the binary for whichever architecture
+ * the user is running.  ``arch`` defaults to the current process's arch; tests can pass
+ * ``'x64'`` or ``'arm64'`` to lock the path.
  */
-export function windowsControlsExecutable(resources = process.resourcesPath, cwd = process.cwd(), exists: (file: string) => boolean = existsSync): string {
-  const packaged = resources ? path.join(resources, 'windows-controls', WINDOWS_CONTROLS_EXE) : undefined
+export function windowsControlsExecutable(resources = process.resourcesPath, cwd = process.cwd(), exists: (file: string) => boolean = existsSync, arch: NodeJS.Architecture = process.arch): string {
+  const archDir = `windows-controls-${arch}`
+  const packaged = resources ? path.join(resources, archDir, WINDOWS_CONTROLS_EXE) : undefined
   if (packaged && exists(packaged)) return packaged
-  return path.resolve(cwd, 'build', 'windows-controls', WINDOWS_CONTROLS_EXE)
+  return path.resolve(cwd, 'build', archDir, WINDOWS_CONTROLS_EXE)
 }
 
 /** Parse exactly one response from the helper's JSON-lines protocol. */

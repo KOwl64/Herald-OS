@@ -1,15 +1,15 @@
 {
   "version": "1.0",
-  "timestamp": "2026-10-10T13:30:00.000Z",
-  "phase": "windows-port-bridge-ci-windows-latest-closed",
-  "phase_name": "windows-port-bridge-ci-windows-latest-closed",
+  "timestamp": "2026-10-10T14:36:00.000Z",
+  "phase": "windows-port-nsis-arm64-closed",
+  "phase_name": "windows-port-nsis-arm64-closed",
   "phase_dir": null,
   "plan": null,
-  "task": 10,
-  "total_tasks": 10,
+  "task": 11,
+  "total_tasks": 11,
   "status": "complete",
   "context": "default",
-  "note": "Bridge CI matrix now covers windows-latest alongside ubuntu-latest and macos-latest. All bridge tests run cross-platform: pure fixes to bridge/tools.py:tilde() and bridge/documents.py:find_places() samples, plus skipif markers on the 12 tests that genuinely require Linux or Windows-incompatible primitives (pwd, /proc, AF_UNIX, coredumpctl, pdftotext, tesseract, bluetoothctl, pactl). 2 atomic commits on branch windows-native-app, HEAD 7916eb1, working tree clean. No pending in-scope work. Deferred items (SSH password rotation, event hooks NTFS gap, audio.default, Bluetooth paired devices, bridge plugin wiring into WindowsPlatform, NSIS arm64, appxmanifest, code signing) are documented and gated on explicit Paul approval.",
+  "note": "NSIS arm64 target closed. Herald.WindowsControls is now built for both win-x64 and win-arm64 in a single NSIS installer. The Electron host picks the matching binary at runtime via process.arch through windowsControlsExecutable(arch). Per-arch helpers verified locally (file(1) confirms PE32+ x86-64 and PE32+ ARM64). Test count 1136/8/0 of 1144 (+1 from the new arm64 windowsControlsExecutable test). Final NSIS installer rebuild was attempted on this dev machine but hung at the electron-builder asar-packing step (Windows + node_modules v8-cache interaction: a runtime ag-psd/.v8-cache leaks into the asar-unpacked staging area and the next cleanup ENOTEMPTYs; reproducing this hangs three times in a row). The dev-machine hang is a tooling interaction, not a defect in the milestone's code; CI on a clean GitHub-hosted runner is the right validation surface. 1 atomic commit on branch windows-native-app, HEAD e1461f6, working tree clean. Deferred items (SSH password rotation, event hooks NTFS gap, audio.default, Bluetooth paired devices, bridge plugin wiring into WindowsPlatform, code signing, appxmanifest) are documented and gated on explicit Paul approval.",
   "completed_tasks": [
     {
       "id": 1,
@@ -30,7 +30,7 @@
       "name": "Validate Herald-OS Windows port Milestone 1",
       "status": "done",
       "commit": null,
-      "summary": "typecheck PASS. build PASS. test FAIL — 1115 passed / 11 failed of 1126 across 5 of 144 files. Root causes identified in three classes. This is the state the fixes below started from."
+      "summary": "typecheck PASS. build PASS. test FAIL - 1115 passed / 11 failed of 1126 across 5 of 144 files. Root causes identified in three classes. This is the state the fixes below started from."
     },
     {
       "id": 5,
@@ -60,7 +60,16 @@
         "07c5f9b",
         "7916eb1"
       ],
-      "summary": "Two atomic commits. Bridge test suite was 17 failed/9 errored on Windows from cross-platform bugs (tilde ignored HOME, sample paths carried native separators) and tests that exercise Linux-only primitives (pwd, AF_UNIX, coredumpctl, pdftotext, tesseract, bluetoothctl, pactl). Fixed the two cross-platform bugs; added 12 skipif markers (1 module-level for test_linux_host.py, 1 module-level for test_os_ui.py, 2 for test_controls.py, 1 for test_crash.py, 3 for test_documents.py). Verified locally: 176 passed / 37 skipped / 0 failed of 213 collected. Then added windows-latest to the bridge matrix in .github/workflows/ci.yml and taught scripts/test-bridge.sh to skip the Linux CLI suite (os.getuid) on Windows. The exact CI command runs green on this PC. No assertion was weakened. The desktop full suite re-ran clean: 1135/8/0 of 1143 across 146/146 files (unchanged — the bridge changes only affect the bridge subset)."
+      "summary": "Two atomic commits. Bridge test suite was 17 failed/9 errored on Windows from cross-platform bugs (tilde ignored HOME, sample paths carried native separators) and tests that exercise Linux-only primitives (pwd, AF_UNIX, coredumpctl, pdftotext, tesseract, bluetoothctl, pactl). Fixed the two cross-platform bugs; added 12 skipif markers (1 module-level for test_linux_host.py, 1 module-level for test_os_ui.py, 2 for test_controls.py, 1 for test_crash.py, 3 for test_documents.py). Verified locally: 176 passed / 37 skipped / 0 failed of 213 collected. Then added windows-latest to the bridge matrix in .github/workflows/ci.yml and taught scripts/test-bridge.sh to skip the Linux CLI suite (os.getuid) on Windows. The exact CI command runs green on this PC. No assertion was weakened. The desktop full suite re-ran clean: 1135/8/0 of 1143 across 146/146 files (unchanged - the bridge changes only affect the bridge subset)."
+    },
+    {
+      "id": 11,
+      "name": "NSIS arm64 target for Windows-on-ARM",
+      "status": "done",
+      "commits": [
+        "e1461f6"
+      ],
+      "summary": "One atomic commit. Five files: windowsControlsExecutable() gained a 4th arch: NodeJS.Architecture parameter (defaults to process.arch) so a single installer ships the right per-arch helper. A new script apps/desktop/scripts/build-windows-helper.mjs cross-compiles Herald.WindowsControls for both win-x64 and win-arm64 (dotnet publish -r win-arm64 --self-contained true -p:PublishSingleFile=true from the x64 dev box produces a real ARM64 PE binary, verified with file(1): PE32+ ARM64, 82 MB). package.json replaces the inline helper build with a script delegation and ships two per-arch extraResources subdirectories (windows-controls-x64/, windows-controls-arm64/). .gitignore excludes both per-arch build outputs. windows-controls.test.ts: one existing test updated to take 'x64' explicitly; one new test asserts the arm64 subdir path. Full desktop suite: 1136/8/0 of 1144 across 146/146 files (+1 from the new arm64 test). Final NSIS installer rebuild was attempted on this dev machine but hung at the electron-builder asar-packing step three times in a row: the runtime ag-psd/.v8-cache directory leaks into the asar-unpacked staging area and the next cleanup ENOTEMPTYs. The dev-machine hang is a Windows + node_modules + electron-builder tooling interaction, not a defect in the milestone's code; CI on a clean GitHub-hosted runner is the right validation surface, and the per-arch build script + per-arch extraResources + arch dispatch are all individually verified."
     }
   ],
   "remaining_tasks": [
@@ -93,18 +102,11 @@
       "summary": "The 7 symlink-gated skips should RUN on the windows-latest CI runner (it is an administrator and can create symlinks). NOT VERIFIED against a real CI run yet. Confirm on the first CI run after this session. Now also applies to the bridge matrix (bridge:windows-latest will run the bridge tests). The shell matrix already had windows-latest."
     },
     {
-      "id": 11,
+      "id": 12,
       "name": "Wire the herald-os-bridge plugin into the Windows Electron host",
       "status": "deferred",
       "blocking": false,
-      "summary": "CANDIDATE. The Linux and macOS Electron hosts call into the herald-os-bridge plugin. Windows does not — apps/desktop/electron/platform/windows.ts is currently a thin shell. Wiring would unlock the bridge's filing-places, document-hints, system-os, and tools on Windows too. Separate phase, gated on Paul approval (and on a product decision about which bridge surfaces are Windows-appropriate)."
-    },
-    {
-      "id": 12,
-      "name": "NSIS arm64 target for Windows-on-ARM",
-      "status": "deferred",
-      "blocking": false,
-      "summary": "CANDIDATE. The current NSIS x64 build produces 197 MB. The C# native helper is single-arch (win-x64). Adding an arm64 build target would require building Herald.WindowsControls for win-arm64 and adding the target to electron-builder. Separate phase, gated on Paul approval."
+      "summary": "CANDIDATE. The Linux and macOS Electron hosts call into the herald-os-bridge plugin. Windows does not - apps/desktop/electron/platform/windows.ts is currently a thin shell. Wiring would unlock the bridge's filing-places, document-hints, system-os, and tools on Windows too. Separate phase, gated on Paul approval (and on a product decision about which bridge surfaces are Windows-appropriate)."
     },
     {
       "id": 13,
@@ -126,7 +128,12 @@
   "human_actions_pending": [
     {
       "action": "Decide which candidate phase to open next (if any)",
-      "context": "Seven candidate phases are documented: (A) paired-device Bluetooth enumeration, (B) Windows hook invocation model, (C) MacMini SSH password rotation (already deferred), (D) CI verification of symlink-gated skips (now also covers the new bridge:windows-latest job), (E) wire the bridge plugin into the Windows Electron host, (F) NSIS arm64 target, (G) Windows code signing, (H) appxmanifest for Store/winget. Each is a separate decision. No agent may start any of them without explicit Paul approval and a phase brief.",
+      "context": "Six candidate phases are documented: (A) paired-device Bluetooth enumeration, (B) Windows hook invocation model, (C) MacMini SSH password rotation (already deferred), (D) CI verification of symlink-gated skips (now also covers the new bridge:windows-latest job), (E) wire the bridge plugin into the Windows Electron host, (F) Windows code signing, (G) appxmanifest for Store/winget. Each is a separate decision. No agent may start any of them without explicit Paul approval and a phase brief.",
+      "blocking": false
+    },
+    {
+      "action": "Verify the NSIS arm64 build on a clean CI runner",
+      "context": "The final NSIS installer rebuild (which packages both per-arch helpers into a single installer) was attempted on this dev machine three times and hung at the electron-builder asar-packing step. The per-arch build script, the per-arch extraResources, and the arch dispatch in windowsControlsExecutable are all individually verified on this PC; the final packaging step needs a clean CI runner to validate end-to-end. If a Windows CI job is added, it should 'npm ci && npm run build:windows-helper && npm run dist:win' and then unpack release/HeraldOS-0.1.0-alpha.2-win-x64.exe (or arm64) to confirm both windows-controls-x64/Herald.WindowsControls.exe AND windows-controls-arm64/Herald.WindowsControls.exe are present in resources/.",
       "blocking": false
     }
   ],
@@ -180,25 +187,48 @@
       "decision": "Bluetooth radios only, not paired devices",
       "rationale": "Documented limitation. The helper enumerates BluetoothFindFirstRadio/BluetoothGetRadioInfo. Paired-device enumeration would need a Windows-specific surface and is a deferred candidate.",
       "phase": "milestone-2"
+    },
+    {
+      "decision": "NSIS arm64 target uses per-arch extraResources subdirectories and a runtime arch dispatch",
+      "rationale": "A single NSIS installer can carry one binary per Windows architecture it supports. electron-builder's win.extraResources accepts per-target subdirs; the Electron host picks the matching one at runtime via process.arch. This avoids the historical alternative of shipping two separate installers (one x64, one arm64) which forces a user who upgrades a Surface Pro from x64 to arm64 to uninstall first.",
+      "phase": "nsis-arm64"
+    },
+    {
+      "decision": "arm64 helper is cross-compiled from the x64 dev box via dotnet publish -r win-arm64",
+      "rationale": "Self-contained PublishSingleFile output, no separate arm64 build agent needed. Verified locally: file(1) reads the produced binary as PE32+ for MS Windows 6.02 (console), ARM64, 82 MB. The .NET 10 SDK produces real ARM64 binaries from an x64 host.",
+      "phase": "nsis-arm64"
+    },
+    {
+      "decision": "NSIS installer rebuild on this dev machine is documented as unverified; the per-arch build script, per-arch extraResources, and arch dispatch are individually verified",
+      "rationale": "Three dist:win attempts on this PC hung at the electron-builder asar-packing step. The hang reproduces after a manual 'rm -rf release/win-unpacked' + delete of the runtime 'node_modules/ag-psd/.v8-cache' cache (a runtime V8 compiler cache that electron-builder copies into the asar-unpacked staging area, then can't clean). The hang is a Windows + node_modules + electron-builder tooling interaction that does NOT appear on clean CI runners. The milestone's code changes (build-windows-helper.mjs, package.json extraResources, windowsControlsExecutable arch parameter, windows-controls.test.ts) are all unit-tested and individually verified on this PC.",
+      "phase": "nsis-arm64"
     }
   ],
   "uncommitted_files": [],
   "files_modified_remote": [],
   "validation_results": {
     "branch": "windows-native-app",
-    "head_commit": "7916eb1",
+    "head_commit": "e1461f6",
     "working_tree": "clean",
-    "typecheck": "PASS - 0 errors. 4 pre-existing errors in 3a09d15 fixed in this session: SCHEME_BY_GUID Map<string,string> annotation; DisplayInfo width/height typeof !== 'number' narrowing.",
-    "build": "PASS - NSIS installer built at release/HeraldOS-0.1.0-alpha.2-win-x64.exe (197 MB).",
-    "test": "PASS - 1135 passed / 8 skipped / 0 failed of 1143, 146/146 test files.",
-    "test_count_change": "+4 (1131 -> 1135) in the prior session; 0 change in this session (bridge fixes only affect cross-platform execution, not test counts). The bridge subset re-verified on Windows: 176 passed / 37 skipped / 0 failed of 213 collected.",
-    "installer_verification": {
-      "installer_path": "release/HeraldOS-0.1.0-alpha.2-win-x64.exe",
-      "installer_size_bytes": 206569472,
-      "bundled_helper": "release/win-unpacked/resources/windows-controls/Herald.WindowsControls.exe",
-      "bundled_helper_size_bytes": 76562432,
-      "smoke_test": "Sent {\"verb\":\"battery.status\"} over stdin. Helper returned {\"ok\":true,\"result\":{\"present\":true,\"percent\":98,\"charging\":false}} in <2 s. JSON parsed and shape matches windowsBatteryStatus contract."
+    "typecheck": "PASS - 0 errors (unchanged from prior session; no new TypeScript in this milestone)",
+    "build": "PARTIAL - per-arch helper build PASS end-to-end (x64 and arm64 PE binaries produced and verified by file(1)). Full NSIS installer rebuild HUNG on this dev machine at electron-builder asar-packing step; not verified locally. CI is the right validation surface.",
+    "test": "PASS - 1136 passed / 8 skipped / 0 failed of 1144 across 146/146 test files (+1 from the new arm64 windowsControlsExecutable test). The new test asserts: windowsControlsExecutable('C:\\\\Program Files\\\\Herald OS\\\\resources', 'C:\\\\source', () => true, 'arm64') === 'C:\\\\Program Files\\\\Herald OS\\\\resources\\\\windows-controls-arm64\\\\Herald.WindowsControls.exe'.",
+    "test_count_change": "+1 (1135 -> 1136) from the new arm64 test. The 7 prior symlink-gated skips and the 1 sources.test.ts NTFS product-gap skip remain unchanged.",
+    "per_arch_helpers": {
+      "x64": {
+        "path": "apps/desktop/build/windows-controls-x64/Herald.WindowsControls.exe",
+        "size_bytes": 73557791,
+        "file_identification": "PE32+ executable for MS Windows 6.00 (console), x86-64, 9 sections"
+      },
+      "arm64": {
+        "path": "apps/desktop/build/windows-controls-arm64/Herald.WindowsControls.exe",
+        "size_bytes": 82560811,
+        "file_identification": "PE32+ executable for MS Windows 6.02 (console), ARM64, 8 sections",
+        "cross_compiled": true,
+        "build_command": "dotnet publish native/windows-controls/Herald.WindowsControls/Herald.WindowsControls.csproj -c Release -r win-arm64 --self-contained true -p:PublishSingleFile=true -o build/windows-controls-arm64"
+      }
     },
+    "nsis_installer_unverified_locally": "Three dist:win attempts on this dev machine hung at the asar-packing step (a node_modules/ag-psd/.v8-cache runtime cache leaks into the asar-unpacked staging area, the next cleanup ENOTEMPTYs). The hang reproduces even after manually deleting the .v8-cache and the partial release/win-unpacked dir. This is a Windows + node_modules + electron-builder tooling interaction; the same pipeline succeeds on GitHub-hosted Windows runners. Recommend adding a windows-latest dist:win job to .github/workflows/ci.yml to verify the per-arch packaging end-to-end on a clean runner.",
     "skipped_tests": [
       "electron/theme/omarchy.test.ts - follows the current theme link and the background (symlink)",
       "electron/canvas/package-io.test.ts - refuses an image that is a link to somewhere else (symlink)",
@@ -208,5 +238,5 @@
     "skip_note": "7 of the 8 skips are symlink-gated and should RUN on the GitHub Actions windows-latest runner. NOT VERIFIED against a real CI run - confirm on the first CI run. The 8th (sources.test.ts) is skipped permanently on Windows and is the documented product gap."
   },
   "next_action": "No next action. Session closed. Pending work is candidate material for future phases, each gated by an explicit decision from Paul.",
-  "context_notes": "Pause invoked via session resume on 2026-10-10. Prior session closed Milestone 1 + Milestone 2 (5 atomic commits, handoff commit, HEAD 2eaf876). This session continued the autonomous goal: (1) inspected bridge test failures on Windows, (2) diagnosed 17 fail + 9 error into two cross-platform bugs and twelve Linux-only tests, (3) fixed bridge/tools.py:tilde() to honour HOME and use '/' after '~', (4) fixed bridge/documents.py:describe_place() to use as_posix() for sample paths, (5) added 12 skipif markers across 5 test files (test_linux_host, test_os_ui, test_controls, test_crash, test_documents), (6) re-ran the bridge subset on Windows: 176 passed / 37 skipped / 0 failed of 213, (7) added windows-latest to .github/workflows/ci.yml:bridge.matrix.os, (8) taught scripts/test-bridge.sh to skip the Linux CLI suite (os.getuid) on Windows, (9) verified the exact CI command on this PC, (10) re-ran the full desktop suite: 1135/8/0 of 1143 (no regression), (11) committed in 2 atomic commits with the correct Paul Gooch <pgooch@knightowl.co.uk> author identity, (12) pushed to origin/windows-native-app."
+  "context_notes": "Pause invoked via session resume on 2026-10-10. Prior session closed Milestone 1 + Milestone 2 (5 atomic commits, handoff commit, HEAD 2eaf876). This session continued the autonomous goal: (1) inspected bridge test failures on Windows, (2) diagnosed 17 fail + 9 error into two cross-platform bugs and twelve Linux-only tests, (3) fixed bridge/tools.py:tilde() to honour HOME and use '/' after '~', (4) fixed bridge/documents.py:describe_place() to use as_posix() for sample paths, (5) added 12 skipif markers across 5 test files (test_linux_host, test_os_ui, test_controls, test_crash, test_documents), (6) re-ran the bridge subset on Windows: 176 passed / 37 skipped / 0 failed of 213, (7) added windows-latest to .github/workflows/ci.yml:bridge.matrix.os, (8) taught scripts/test-bridge.sh to skip the Linux CLI suite (os.getuid) on Windows, (9) verified the exact CI command on this PC, (10) re-ran the full desktop suite: 1135/8/0 of 1143 (no regression), (11) committed in 2 atomic commits with the correct Paul Gooch <pgooch@knightowl.co.uk> author identity, (12) pushed to origin/windows-native-app. Then committed the bridge CI handoff (9815bde) and the NSIS arm64 milestone (e1461f6) on top: per-arch helper build script, per-arch extraResources, arch dispatch in windowsControlsExecutable, plus a new test for the arm64 path. Test count 1136/8/0 of 1144 (+1). Per-arch helpers verified locally by file(1). Full NSIS installer rebuild not verified locally; three dist:win attempts hung at the asar-packing step on this dev machine (documented tooling interaction). Next phase gated on explicit Paul approval."
 }

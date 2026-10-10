@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
-import type { ControlAction, PowerState, StatusPanelId, StatusPanelState, SystemStats, WifiNetwork, WifiState } from '../../shared/ipc.ts'
+import type { AudioDevice, AudioState, BluetoothState, ControlAction, DisplayInfo, DisplayState, PowerState, StatusPanelId, StatusPanelState, SystemStats, WifiNetwork, WifiState } from '../../shared/ipc.ts'
 import { MISSING_BINARY, run } from './exec.ts'
 import { HostNotSupported } from './types.ts'
 
@@ -12,7 +12,7 @@ const POWER_SCHEMES = {
   performance: '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c',
   'power-saver': 'a1841308-3541-4fab-bc81-f71556f20b4a'
 } as const
-const SCHEME_BY_GUID = new Map(Object.entries(POWER_SCHEMES).map(([name, guid]) => [guid, name]))
+const SCHEME_BY_GUID: Map<string, string> = new Map(Object.entries(POWER_SCHEMES).map(([name, guid]) => [guid, name]))
 const WINDOWS_CONTROLS_EXE = 'Herald.WindowsControls.exe'
 
 type WindowsHelperResponse =
@@ -46,7 +46,21 @@ export function parseWindowsHelperResponse(stdout: string): WindowsHelperRespons
   return parsed as WindowsHelperResponse
 }
 
-async function callWindowsHelper(verb: 'battery.status', executable = windowsControlsExecutable()): Promise<unknown> {
+type WindowsHelperVerb =
+  | 'battery.status'
+  | 'bluetooth.status'
+  | 'display.status'
+  | 'audio.status'
+  | 'audio.volume'
+
+interface WindowsHelperRequest {
+  verb: WindowsHelperVerb
+  id?: string
+  percent?: number
+  muted?: boolean
+}
+
+async function callWindowsHelper(request: WindowsHelperRequest, executable = windowsControlsExecutable()): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
     let stdout = ''
@@ -86,18 +100,80 @@ async function callWindowsHelper(verb: 'battery.status', executable = windowsCon
         finish(error instanceof Error ? error : new Error('Windows controls helper failed'))
       }
     })
-    child.stdin.end(`${JSON.stringify({ verb })}\n`)
+    child.stdin.end(`${JSON.stringify(request)}\n`)
   })
 }
 
 /** Read the Win32-backed battery state without introducing PowerShell into the control path. */
 export async function windowsBatteryStatus(): Promise<SystemStats['battery']> {
-  const result = await callWindowsHelper('battery.status')
+  const result = await callWindowsHelper({ verb: 'battery.status' })
   if (!result || typeof result !== 'object') throw new Error('Windows controls helper returned an invalid battery status')
   const battery = result as { present?: unknown; percent?: unknown; charging?: unknown }
   if (typeof battery.present !== 'boolean') throw new Error('Windows controls helper returned an invalid battery status')
   const percent = typeof battery.percent === 'number' && Number.isInteger(battery.percent) && battery.percent >= 0 && battery.percent <= 100 ? battery.percent : undefined
   return { present: battery.present, ...(percent === undefined ? {} : { percent }), ...(typeof battery.charging === 'boolean' ? { charging: battery.charging } : {}) }
+}
+
+/** Translate the deliberately small native Bluetooth DTO into the shared panel shape. */
+export async function windowsBluetoothStatus(): Promise<BluetoothState> {
+  const result = await callWindowsHelper({ verb: 'bluetooth.status' })
+  if (!result || typeof result !== 'object') throw new Error('Windows controls helper returned an invalid Bluetooth status')
+  const bluetooth = result as { available?: unknown; radios?: unknown }
+  if (typeof bluetooth.available !== 'boolean' || !Array.isArray(bluetooth.radios)) throw new Error('Windows controls helper returned an invalid Bluetooth status')
+  const devices = bluetooth.radios.flatMap(radio => {
+    if (!radio || typeof radio !== 'object') return []
+    const { name, address } = radio as { name?: unknown; address?: unknown }
+    return typeof name === 'string' && typeof address === 'string' ? [{ name, address, paired: false, connected: false }] : []
+  })
+  return { available: bluetooth.available, powered: bluetooth.available, devices }
+}
+
+/** Windows owns display configuration; Herald reports active monitors without taking it over. */
+export async function windowsDisplayStatus(): Promise<DisplayState> {
+  const result = await callWindowsHelper({ verb: 'display.status' })
+  if (!result || typeof result !== 'object') throw new Error('Windows controls helper returned an invalid display status')
+  const displays = (result as { monitors?: unknown }).monitors
+  if (!Array.isArray(displays)) throw new Error('Windows controls helper returned an invalid display status')
+  const mapped: DisplayInfo[] = displays.flatMap(monitor => {
+    if (!monitor || typeof monitor !== 'object') return []
+    const { deviceName, width, height } = monitor as { deviceName?: unknown; width?: unknown; height?: unknown }
+    if (typeof deviceName !== 'string' || typeof width !== 'number' || !Number.isInteger(width) || typeof height !== 'number' || !Number.isInteger(height) || width <= 0 || height <= 0) return []
+    return [{ name: deviceName, label: deviceName, enabled: true, width, height, refresh: 0, scale: 1, modes: [] }]
+  })
+  return { available: mapped.length > 0, displays: mapped }
+}
+
+/** Translate a single endpoint from the native helper's DTO into the shared shape. */
+export function mapWindowsAudioDevice(device: unknown): AudioDevice | null {
+  if (!device || typeof device !== 'object') return null
+  const { id, name, isDefault, volume, muted } = device as { id?: unknown; name?: unknown; isDefault?: unknown; volume?: unknown; muted?: unknown }
+  if (typeof id !== 'string' || typeof name !== 'string') return null
+  if (typeof isDefault !== 'boolean') return null
+  if (typeof volume !== 'number' || volume < 0 || volume > 100) return null
+  if (typeof muted !== 'boolean') return null
+  return { id, name, isDefault, volume: Math.round(volume), muted }
+}
+
+/** Parse the native audio.status DTO into the shared AudioState. */
+export function parseWindowsAudioStatus(result: unknown): AudioState {
+  if (!result || typeof result !== 'object') throw new Error('Windows controls helper returned an invalid audio status')
+  const audio = result as { available?: unknown; outputs?: unknown; inputs?: unknown }
+  if (typeof audio.available !== 'boolean') throw new Error('Windows controls helper returned an invalid audio status')
+  const outputs = Array.isArray(audio.outputs) ? audio.outputs.map(mapWindowsAudioDevice).filter((device): device is AudioDevice => device !== null) : []
+  const inputs = Array.isArray(audio.inputs) ? audio.inputs.map(mapWindowsAudioDevice).filter((device): device is AudioDevice => device !== null) : []
+  return { available: audio.available, outputs, inputs }
+}
+
+/** Audio panel: read the documented MMDevice/Core Audio endpoints into the shared shape. */
+export async function windowsAudioStatus(): Promise<AudioState> {
+  return parseWindowsAudioStatus(await callWindowsHelper({ verb: 'audio.status' }))
+}
+
+/** Change the master volume or mute of an endpoint via the documented Core Audio scalar interface. */
+export async function windowsAudioVolume(id: string | undefined, percent: number | undefined, muted: boolean | undefined): Promise<void> {
+  if (percent === undefined && muted === undefined) throw new Error('audio.volume needs percent and/or muted')
+  if (percent !== undefined && (!Number.isInteger(percent) || percent < 0 || percent > 100)) throw new Error('audio volume must be between 0 and 100')
+  await callWindowsHelper({ verb: 'audio.volume', id, percent, muted })
 }
 
 export function parseWifiInterface(stdout: string): { available: boolean; name?: string; enabled: boolean; connected?: string } {
@@ -153,6 +229,9 @@ async function powerState(stats: SystemStats): Promise<PowerState> {
 
 export async function windowsControlStatus(panel: StatusPanelId, stats: () => Promise<SystemStats>): Promise<StatusPanelState> {
   if (panel === 'wifi') return { panel, wifi: await wifiState() }
+  if (panel === 'bluetooth') return { panel, bluetooth: await windowsBluetoothStatus() }
+  if (panel === 'audio') return { panel, audio: await windowsAudioStatus() }
+  if (panel === 'display') return { panel, display: await windowsDisplayStatus() }
   if (panel === 'power') return { panel, power: await powerState(await stats()) }
   throw new HostNotSupported(`${panel} quick controls`)
 }
@@ -174,6 +253,12 @@ export async function windowsControlAction(action: ControlAction): Promise<void>
     if (!scheme) throw new Error('unknown Windows power profile')
     await required('powercfg', ['/setactive', scheme], 'Windows power configuration permission')
     return
+  }
+  if (action.panel === 'audio') {
+    // Windows exposes no supported public API to choose the default endpoint; surface that as a
+    // HostNotSupported rather than reach for a private IPolicyConfig contract.
+    if (action.action === 'default') throw new HostNotSupported('changing the Windows audio default device', 'Windows Sound settings (Windows has no documented API for choosing the default)')
+    if (action.action === 'volume') { await windowsAudioVolume(action.id, action.percent, action.muted); return }
   }
   throw new HostNotSupported(`${action.panel} quick controls`)
 }

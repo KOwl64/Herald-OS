@@ -24,6 +24,15 @@ export function controlActionProblem(action: ControlAction): string | null {
     values.push(action.id)
   }
 
+  if (action.panel === 'audio' && action.action === 'volume') {
+    if (action.percent === undefined && action.muted === undefined) {
+      return 'volume requires either percent or muted'
+    }
+    if (action.percent !== undefined && (!Number.isInteger(action.percent) || action.percent < 0 || action.percent > 100)) {
+      return 'volume must be an integer between 0 and 100'
+    }
+  }
+
   if ('name' in action) {
     values.push(action.name)
   }
